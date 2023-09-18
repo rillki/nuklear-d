@@ -1,0 +1,11 @@
+{
+	"authors": [
+		"rillki"
+	],
+	"copyright": "Copyright © 2023, rillki",
+	"description": "D translation of Nuklear library from C.",
+	"license": "Unlicense",
+	"name": "nuklear-d",
+	"targetPath": "bin",
+	"buildOptions": ["betterC"]
+}
