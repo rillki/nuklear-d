@@ -44,8 +44,6 @@ version (NK_INCLUDE_STANDARD_VARARGS) {
  *
  * ===============================================================
  */
-    public import core.stdc.stdint;
-
 
 version (NK_INCLUDE_FIXED_TYPES) {
     import core.stdc.stdint;
