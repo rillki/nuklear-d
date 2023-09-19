@@ -1,11 +1,24 @@
 {
-	"authors": [
-		"rillki"
-	],
-	"copyright": "Copyright © 2023, rillki",
-	"description": "D translation of Nuklear library from C.",
-	"license": "Unlicense",
-	"name": "nuklear-d",
-	"targetPath": "bin",
-	"buildOptions": ["betterC"]
+    "authors": [
+        "rillki"
+    ],
+    "copyright": "Copyright © 2022, rillki",
+    "dependencies": {
+        "bindbc-glfw": "~>1.0.1",
+        "bindbc-opengl": "~>1.0.3"
+    },
+    "description": "D translation of Nuklear library from C.",
+    "license": "Unlicense",
+    "name": "nuklear-d",
+    "targetPath": "bin",
+    "versions": [
+        "GLFW_33",
+        "GL_33",
+        "GL_AllowDeprecated",
+        "NK_ALL"
+    ],
+    "lflags": ["-L./lib"],
+    "libs": ["nuklear", "GLEW"]
 }
+
+
