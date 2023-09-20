@@ -43,10 +43,10 @@ NK_UINT_DRAW_INDEX
 ### Modifying configuration flags
 To modify the configuration flags, follow these 3 steps:
 
-1. `git clone https://github.com/rillki/nuklear-d.git`
+1. `git clone https://github.com/rillki/nuklear-d.git` and `cd nuklear-d`
 2. Modify `dub.{json, sdl}` configuation flags.
-3. Modify  `c/nuklear.c` configuration flags.
-4. Execute `build_nuklear_static.{sh, bat}` to build the static library with your custom flags enabled.
+3. Modify `c/nuklear.c` configuration flags.
+4. Delete `lib/` folder and execute `build_nuklear_static.{sh, bat}` to build the static library with your custom flags enabled.
 5. Inside your project's `dub.{json, sdl}` find the `dependencies` section and modify:
 ```
 "dependencies": {

@@ -4,7 +4,7 @@ extern(C) @nogc
 void error_callback(int e, const(char)* d) nothrow { 
     import core.stdc.stdio: printf; 
     printf("Error %d: %s\n", e, d); 
-}
+} 
 
 void main() {
     import core.stdc.stdio: printf;

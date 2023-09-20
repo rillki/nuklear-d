@@ -29,19 +29,23 @@
             "name": "osx",
             "platforms": ["osx"],
             "targetType": "executable",
-            "lflags": ["-L$PACKAGE_DIR/lib/osx"]
+            "lflags": ["-L$PACKAGE_DIR/lib/osx"],
+            "preBuildCommands": ["cd c; sh build_nuklear_static.sh"]
         },
         {
             "name": "linux",
             "platforms": ["linux"],
             "targetType": "executable",
-            "lflags": ["-L$PACKAGE_DIR/lib/linux"]
+            "lflags": ["-L$PACKAGE_DIR/lib/linux"],
+            "preBuildCommands": ["cd c; sh build_nuklear_static.sh"]
+
         },
         {
             "name": "windows",
             "platforms": ["windows"],
             "targetType": "executable",
-            "lflags": ["-L$PACKAGE_DIR/lib/windows_x64"]
+            "lflags": ["-L$PACKAGE_DIR/lib/windows_x64"],
+            "preBuildCommands": ["cd c; ./build_nuklear_static.bat"]
         }
     ],
     "libs": ["nuklear"]
