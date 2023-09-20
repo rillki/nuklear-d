@@ -65,7 +65,7 @@ void nk_pool_init_fixed(nk_pool *pool, void *memory, nk_size size)
     nk_zero(pool, (*pool).sizeof);
     assert(size >= nk_page.sizeof);
     if (size < nk_page.sizeof) return;
-    /* first nk_page_element is embedded in nk_page, additional elements follow in adjacent space */
+    /* first nk_page_element is embedded in_ nk_page, additional elements follow in_ adjacent space */
     pool.capacity = cast(uint)(1 + (size - nk_page.sizeof) / nk_page_element.sizeof);
     pool.pages = cast(nk_page*)memory;
     pool.type = NK_BUFFER_FIXED;
@@ -134,8 +134,8 @@ void nk_remove_table(nk_window *win, nk_table *tbl)
 
 void nk_free_table(nk_context *ctx, nk_table *tbl)
 {
-    nk_page_data *pd = nk_container_of(tbl, nk_page_data(), tbl);
-    nk_page_element *pe = nk_container_of(pd, nk_page_element(), data);
+    nk_page_data *pd = nk_container_of(tbl, nk_page_data(), nk_page_data().tbl.offsetof);
+    nk_page_element *pe = nk_container_of(pd, nk_page_element(), nk_page_element().data.offsetof);
     nk_free_page_element(ctx, pe);
 }
 
@@ -162,8 +162,8 @@ void nk_free_window(nk_context *ctx, nk_window *win)
 
     /* link windows into freelist */
     {
-        nk_page_data *pd = nk_container_of(win, nk_page_data, win);
-        nk_page_element *pe = nk_container_of(pd, nk_page_element, data);
+        nk_page_data *pd = nk_container_of(win, nk_page_data(), nk_page_data().win.offsetof);
+        nk_page_element *pe = nk_container_of(pd, nk_page_element(), nk_page_element().data.offsetof);
         nk_free_page_element(ctx, pe);
     }
 }
@@ -197,7 +197,6 @@ void nk_remove_window(nk_context *ctx, nk_window *win)
     ctx.count--;
 }
 
-// checkpoint
 void nk_clear(nk_context* ctx)
 {
     nk_window *iter;
@@ -239,7 +238,7 @@ void nk_clear(nk_context* ctx)
         /* free unused popup windows */
         if (iter.popup.win && iter.popup.win.seq != ctx.seq) {
             nk_free_window(ctx, iter.popup.win);
-            iter.popup.win = 0;
+            iter.popup.win = null;
         }
         /* remove unused window state tables */
         {
@@ -266,20 +265,299 @@ void nk_clear(nk_context* ctx)
     ctx.seq++;
 }
 
-void nk_free(nk_context*);
-version(NK_INCLUDE_COMMAND_USERDATA) {
-    void nk_set_user_data(nk_context*, nk_handle handle);
+void nk_pool_free(nk_pool *pool)
+{
+    nk_page *iter;
+    if (!pool) return;
+    iter = pool.pages;
+    if (pool.type == NK_BUFFER_FIXED) return;
+    while (iter) {
+        nk_page *next = iter.next;
+        pool.alloc.free(pool.alloc.userdata, iter);
+        iter = next;
+    }
 }
-void nk_input_begin(nk_context*);
-void nk_input_motion(nk_context*, int x, int y);
-void nk_input_key(nk_context*, nk_keys, bool down);
-void nk_input_button(nk_context*, nk_buttons, int x, int y, bool down);
-void nk_input_scroll(nk_context*, nk_vec2 val);
-void nk_input_char(nk_context*, char);
-void nk_input_glyph(nk_context*, const(char)*);
-void nk_input_unicode(nk_context*, nk_rune);
-void nk_input_end(nk_context*);
-const(nk_command)* nk__begin(nk_context*);
+
+void nk_free(nk_context* ctx)
+{
+    assert(ctx);
+    if (!ctx) return;
+    nk_buffer_free(&ctx.memory);
+    if (ctx.use_pool)
+        nk_pool_free(&ctx.pool);
+
+    nk_zero(&ctx.input, ctx.input.sizeof);
+    nk_zero(&ctx.style, ctx.style.sizeof);
+    nk_zero(&ctx.memory, ctx.memory.sizeof);
+
+    ctx.seq = 0;
+    ctx.build = 0;
+    ctx.begin = null;
+    ctx.end = null;
+    ctx.active = null;
+    ctx.current = null;
+    ctx.freelist = null;
+    ctx.count = 0;
+}
+
+version(NK_INCLUDE_COMMAND_USERDATA) {
+    void nk_set_user_data(nk_context* ctx, nk_handle handle)
+    {
+        if (!ctx) return;
+        ctx.userdata = handle;
+        if (ctx.current)
+            ctx.current.buffer.userdata = handle;
+    }
+}
+
+void nk_input_begin(nk_context* ctx)
+{
+    int i;
+    nk_input *in_;
+    assert(ctx);
+    if (!ctx) return;
+    in_ = &ctx.input;
+    for (i = 0; i < NK_BUTTON_MAX; ++i)
+        in_.mouse.buttons[i].clicked = 0;
+
+    in_.keyboard.text_len = 0;
+    in_.mouse.scroll_delta = nk_vec2(0,0);
+    in_.mouse.prev.x = in_.mouse.pos.x;
+    in_.mouse.prev.y = in_.mouse.pos.y;
+    in_.mouse.delta.x = 0;
+    in_.mouse.delta.y = 0;
+    for (i = 0; i < NK_KEY_MAX; i++)
+        in_.keyboard.keys[i].clicked = 0;
+}
+
+void nk_input_motion(nk_context* ctx, int x, int y)
+{
+    nk_input *in_;
+    assert(ctx);
+    if (!ctx) return;
+    in_ = &ctx.input;
+    in_.mouse.pos.x = cast(float)x;
+    in_.mouse.pos.y = cast(float)y;
+    in_.mouse.delta.x = in_.mouse.pos.x - in_.mouse.prev.x;
+    in_.mouse.delta.y = in_.mouse.pos.y - in_.mouse.prev.y;
+}
+
+void nk_input_key(nk_context* ctx, nk_keys key, bool down)
+{
+    nk_input *in_;
+    assert(ctx);
+    if (!ctx) return;
+    in_ = &ctx.input;
+    version(NK_KEYSTATE_BASED_INPUT) {
+        if (in_.keyboard.keys[key].down != down)
+            in_.keyboard.keys[key].clicked++;
+    } else {
+        in_.keyboard.keys[key].clicked++;
+    }
+    in_.keyboard.keys[key].down = down;
+}
+
+void nk_input_button(nk_context* ctx, nk_buttons id, int x, int y, bool down)
+{
+    nk_mouse_button *btn;
+    nk_input *in_;
+    assert(ctx);
+    if (!ctx) return;
+    in_ = &ctx.input;
+    if (in_.mouse.buttons[id].down == down) return;
+
+    btn = &in_.mouse.buttons[id];
+    btn.clicked_pos.x = cast(float)x;
+    btn.clicked_pos.y = cast(float)y;
+    btn.down = down;
+    btn.clicked++;
+
+    /* Fix Click-Drag for touch events. */
+    in_.mouse.delta.x = 0;
+    in_.mouse.delta.y = 0;
+    version(NK_BUTTON_TRIGGER_ON_RELEASE) {
+        if (down == 1 && id == NK_BUTTON_LEFT)
+        {
+            in_.mouse.down_pos.x = btn.clicked_pos.x;
+            in_.mouse.down_pos.y = btn.clicked_pos.y;
+        }
+    }
+}
+
+void nk_input_scroll(nk_context* ctx, nk_vec2 val)
+{
+    assert(ctx);
+    if (!ctx) return;
+    ctx.input.mouse.scroll_delta.x += val.x;
+    ctx.input.mouse.scroll_delta.y += val.y;
+}
+
+void nk_input_char(nk_context* ctx, char c)
+{
+    nk_glyph glyph;
+    assert(ctx);
+    if (!ctx) return;
+    glyph[0] = c;
+    nk_input_glyph(ctx, glyph.ptr);
+}
+
+void nk_input_glyph(nk_context* ctx, const(char)* glyph)
+{
+    int len = 0;
+    nk_rune unicode;
+    nk_input *in_;
+
+    assert(ctx);
+    if (!ctx) return;
+    in_ = &ctx.input;
+
+    len = nk_utf_decode(glyph, &unicode, NK_UTF_SIZE);
+    if (len && ((in_.keyboard.text_len + len) < NK_INPUT_MAX)) {
+        nk_utf_encode(unicode, &in_.keyboard.text[in_.keyboard.text_len],
+            NK_INPUT_MAX - in_.keyboard.text_len);
+        in_.keyboard.text_len += len;
+    }
+}
+
+void nk_input_unicode(nk_context* ctx, nk_rune unicode)
+{
+    nk_glyph rune;
+    assert(ctx);
+    if (!ctx) return;
+    nk_utf_encode(unicode, rune.ptr, NK_UTF_SIZE);
+    nk_input_glyph(ctx, rune.ptr);
+}
+
+void nk_input_end(nk_context* ctx)
+{
+    nk_input *in_;
+    assert(ctx);
+    if (!ctx) return;
+    in_ = &ctx.input;
+    if (in_.mouse.grab)
+        in_.mouse.grab = 0;
+    if (in_.mouse.ungrab) {
+        in_.mouse.grabbed = 0;
+        in_.mouse.ungrab = 0;
+        in_.mouse.grab = 0;
+    }
+}
+
+void nk_command_buffer_init(nk_command_buffer *cb, nk_buffer *b, nk_command_clipping clip)
+{
+    assert(cb);
+    assert(b);
+    if (!cb || !b) return;
+    cb.base = b;
+    cb.use_clipping = cast(int)clip;
+    cb.begin = b.allocated;
+    cb.end = b.allocated;
+    cb.last = b.allocated;
+}
+
+void nk_start_buffer(nk_context *ctx, nk_command_buffer *buffer)
+{
+    assert(ctx);
+    assert(buffer);
+    if (!ctx || !buffer) return;
+    buffer.begin = ctx.memory.allocated;
+    buffer.end = buffer.begin;
+    buffer.last = buffer.begin;
+    buffer.clip = nk_null_rect;
+}
+
+void nk_finish_buffer(nk_context *ctx, nk_command_buffer *buffer)
+{
+    assert(ctx);
+    assert(buffer);
+    if (!ctx || !buffer) return;
+    buffer.end = ctx.memory.allocated;
+}
+
+// checkpoint
+void nk_build(nk_context *ctx)
+{
+    nk_window *it = null;
+    nk_command *cmd = null;
+    nk_byte *buffer = null;
+
+    /* draw cursor overlay */
+    if (!ctx.style.cursor_active)
+        ctx.style.cursor_active = ctx.style.cursors[NK_CURSOR_ARROW];
+    if (ctx.style.cursor_active && !ctx.input.mouse.grabbed && ctx.style.cursor_visible) {
+        nk_rect mouse_bounds;
+        const(nk_cursor)* cursor = ctx.style.cursor_active;
+        nk_command_buffer_init(&ctx.overlay, &ctx.memory, NK_CLIPPING_OFF);
+        nk_start_buffer(ctx, &ctx.overlay);
+
+        mouse_bounds.x = ctx.input.mouse.pos.x - cursor.offset.x;
+        mouse_bounds.y = ctx.input.mouse.pos.y - cursor.offset.y;
+        mouse_bounds.w = cursor.size.x;
+        mouse_bounds.h = cursor.size.y;
+
+        nk_draw_image(&ctx.overlay, mouse_bounds, &cursor.img, nk_white);
+        nk_finish_buffer(ctx, &ctx.overlay);
+    }
+    /* build one big draw command list out of all window buffers */
+    it = ctx.begin;
+    buffer = cast(nk_byte*)ctx.memory.memory.ptr;
+    while (it != null) {
+        nk_window *next = it.next;
+        if (it.buffer.last == it.buffer.begin || (it.flags & NK_WINDOW_HIDDEN)||
+            it.seq != ctx.seq)
+            goto cont;
+
+        cmd = nk_ptr_add(nk_command(), buffer, it.buffer.last);
+        while (next && ((next.buffer.last == next.buffer.begin) ||
+            (next.flags & NK_WINDOW_HIDDEN) || next.seq != ctx.seq))
+            next = next.next; /* skip empty command buffers */
+
+        if (next) cmd.next = next.buffer.begin;
+        cont: it = next;
+    }
+    /* append all popup draw commands into lists */
+    it = ctx.begin;
+    while (it != null) {
+        nk_window *next = it.next;
+        nk_popup_buffer *buf;
+        if (!it.popup.buf.active)
+            goto skip;
+
+        buf = &it.popup.buf;
+        cmd.next = buf.begin;
+        cmd = nk_ptr_add(nk_command(), buffer, buf.last);
+        buf.active = nk_false;
+        skip: it = next;
+    }
+    if (cmd) {
+        /* append overlay commands */
+        if (ctx.overlay.end != ctx.overlay.begin)
+            cmd.next = ctx.overlay.begin;
+        else cmd.next = ctx.memory.allocated;
+    }
+}
+
+const(nk_command)* nk__begin(nk_context* ctx)
+{
+    nk_window *iter;
+    nk_byte *buffer;
+    assert(ctx);
+    if (!ctx) return null;
+    if (!ctx.count) return null;
+
+    buffer = cast(nk_byte*)ctx.memory.memory.ptr;
+    if (!ctx.build) {
+        nk_build(ctx);
+        ctx.build = nk_true;
+    }
+    iter = ctx.begin;
+    while (iter && ((iter.buffer.begin == iter.buffer.end) ||
+        (iter.flags & NK_WINDOW_HIDDEN) || iter.seq != ctx.seq))
+        iter = iter.next;
+    if (!iter) return null;
+    return nk_ptr_add_const(nk_command(), buffer, iter.buffer.begin);
+}
+
 const(nk_command)* nk__next(nk_context*, const(nk_command)*);
 version(NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
     nk_flags nk_convert(nk_context*, nk_buffer* cmds, nk_buffer* vertices, nk_buffer* elements, const(nk_convert_config)*);
@@ -1215,7 +1493,38 @@ int nk_strfilter(const(char)* text, const(char)* regexp);
 int nk_strmatch_fuzzy_string(const(char)* str, const(char)* pattern, int* out_score);
 int nk_strmatch_fuzzy_text(const(char)* txt, int txt_len, const(char)* pattern, int* out_score);
 int nk_utf_decode(const(char)*, nk_rune*, int);
-int nk_utf_encode(nk_rune, char*, int);
+
+int nk_utf_validate(nk_rune *u, int i)
+{
+    assert(u);
+    if (!u) return 0;
+    if (!nk_between(*u, nk_utfmin[i], nk_utfmax[i]) ||
+         nk_between(*u, 0xD800, 0xDFFF))
+            *u = NK_UTF_INVALID;
+    for (i = 1; *u > nk_utfmax[i]; ++i) {}
+    return i;
+}
+
+char nk_utf_encode_byte(nk_rune u, int i)
+{
+    return cast(char)((nk_utfbyte[i]) | (cast(nk_byte)u & ~nk_utfmask[i]));
+}
+
+int nk_utf_encode(nk_rune u, char* c, int clen)
+{
+    int len, i;
+    len = nk_utf_validate(&u, 0);
+    if (clen < len || !len || len > NK_UTF_SIZE)
+        return 0;
+
+    for (i = len - 1; i != 0; --i) {
+        c[i] = nk_utf_encode_byte(u, 0);
+        u >>= 6;
+    }
+    c[0] = nk_utf_encode_byte(u, len);
+    return len;
+}
+
 int nk_utf_len(const(char)*, int byte_len);
 const(char)* nk_utf_at(const(char)* buffer, int length, int index, nk_rune* unicode, int* len);
 version(NK_INCLUDE_FONT_BAKING) {
@@ -1301,7 +1610,16 @@ void nk_buffer_clear(nk_buffer* b)
     b.needed = 0;
 }
 
-void nk_buffer_free(nk_buffer*);
+void nk_buffer_free(nk_buffer* b)
+{
+    assert(b);
+    if (!b || !b.memory.ptr) return;
+    if (b.type == NK_BUFFER_FIXED) return;
+    if (!b.pool.free) return;
+    assert(b.pool.free);
+    b.pool.free(b.pool.userdata, b.memory.ptr);
+}
+
 void* nk_buffer_memory(nk_buffer*);
 const(void)* nk_buffer_memory_const(const(nk_buffer)*);
 nk_size nk_buffer_total(nk_buffer*);
@@ -1383,7 +1701,189 @@ void nk_fill_circle(nk_command_buffer*, nk_rect, nk_color);
 void nk_fill_arc(nk_command_buffer*, float cx, float cy, float radius, float a_min, float a_max, nk_color);
 void nk_fill_triangle(nk_command_buffer*, float x0, float y0, float x1, float y1, float x2, float y2, nk_color);
 void nk_fill_polygon(nk_command_buffer*, float*, int point_count, nk_color);
-void nk_draw_image(nk_command_buffer*, nk_rect, const(nk_image)*, nk_color);
+
+void* nk_buffer_align(void *unaligned, nk_size align_, nk_size *alignment, nk_buffer_allocation_type type)
+{
+    void *memory = 0;
+    switch (type) {
+        default:
+        case NK_BUFFER_MAX:
+        case NK_BUFFER_FRONT:
+            if (align_) {
+                memory = nk_align_ptr(unaligned, align_);
+                *alignment = cast(nk_size)(cast(nk_byte*)memory - cast(nk_byte*)unaligned);
+            } else {
+                memory = unaligned;
+                *alignment = 0;
+            }
+            break;
+        case NK_BUFFER_BACK:
+            if (align_) {
+                memory = nk_align_ptr_back(unaligned, align_);
+                *alignment = cast(nk_size)(cast(nk_byte*)unaligned - cast(nk_byte*)memory);
+            } else {
+                memory = unaligned;
+                *alignment = 0;
+            }
+            break;
+    }
+    return memory;
+}
+
+void* nk_buffer_realloc(nk_buffer *b, nk_size capacity, nk_size *size)
+{
+    void *temp;
+    nk_size buffer_size;
+
+    assert(b);
+    assert(size);
+    if (!b || !size || !b.pool.alloc || !b.pool.free)
+        return 0;
+
+    buffer_size = b.memory.size;
+    temp = b.pool.alloc(b.pool.userdata, b.memory.ptr, capacity);
+    assert(temp);
+    if (!temp) return 0;
+
+    *size = capacity;
+    if (temp != b.memory.ptr) {
+        NK_MEMCPY(temp, b.memory.ptr, buffer_size);
+        b.pool.free(b.pool.userdata, b.memory.ptr);
+    }
+
+    if (b.size == buffer_size) {
+        /* no back buffer so just set correct size */
+        b.size = capacity;
+        return temp;
+    } else {
+        /* copy back buffer to the end of the new buffer */
+        void *dst, *src;
+        nk_size back_size;
+        back_size = buffer_size - b.size;
+        dst = nk_ptr_add(void, temp, capacity - back_size);
+        src = nk_ptr_add(void, temp, b.size);
+        NK_MEMCPY(dst, src, back_size);
+        b.size = capacity - back_size;
+    }
+    return temp;
+}
+
+nk_uint nk_round_up_pow2(nk_uint v)
+{
+    v--;
+    v |= v >> 1;
+    v |= v >> 2;
+    v |= v >> 4;
+    v |= v >> 8;
+    v |= v >> 16;
+    v++;
+    return v;
+}
+
+void* nk_buffer_alloc(nk_buffer *b, nk_buffer_allocation_type type, nk_size size, nk_size align_)
+{
+    int full;
+    nk_size alignment;
+    void *unaligned;
+    void *memory;
+
+    assert(b);
+    assert(size);
+    if (!b || !size) return 0;
+    b.needed += size;
+
+    /* calculate total size with needed alignment + size */
+    if (type == NK_BUFFER_FRONT)
+        unaligned = nk_ptr_add(void.init, b.memory.ptr, b.allocated);
+    else unaligned = nk_ptr_add(void.init, b.memory.ptr, b.size - size);
+    memory = nk_buffer_align(unaligned, align_, &alignment, type);
+
+    /* check if buffer has enough memory*/
+    if (type == NK_BUFFER_FRONT)
+        full = ((b.allocated + size + alignment) > b.size);
+    else full = ((b.size - nk_min(b.size,(size + alignment))) <= b.allocated);
+
+    if (full) {
+        nk_size capacity;
+        if (b.type != NK_BUFFER_DYNAMIC)
+            return 0;
+        assert(b.pool.alloc && b.pool.free);
+        if (b.type != NK_BUFFER_DYNAMIC || !b.pool.alloc || !b.pool.free)
+            return 0;
+
+        /* buffer is full so allocate bigger buffer if dynamic */
+        capacity = cast(nk_size)(cast(float)b.memory.size * b.grow_factor);
+        capacity = nk_malloc(capacity, nk_round_up_pow2((nk_uint)(b.allocated + size)));
+        b.memory.ptr = nk_buffer_realloc(b, capacity, &b.memory.size);
+        if (!b.memory.ptr) return 0;
+
+        /* align_ newly allocated pointer */
+        if (type == NK_BUFFER_FRONT)
+            unaligned = nk_ptr_add(void, b.memory.ptr, b.allocated);
+        else unaligned = nk_ptr_add(void, b.memory.ptr, b.size - size);
+        memory = nk_buffer_align(unaligned, align_, &alignment, type);
+    }
+    if (type == NK_BUFFER_FRONT)
+        b.allocated += size + alignment;
+    else b.size -= (size + alignment);
+    b.needed += alignment;
+    b.calls++;
+    return memory;
+}
+
+void* nk_command_buffer_push(nk_command_buffer* b, nk_command_type t, nk_size size)
+{
+    const nk_size align_ = nk_command.alignof;
+    nk_command *cmd;
+    nk_size alignment;
+    void *unaligned;
+    void *memory;
+
+    assert(b);
+    assert(b.base);
+    if (!b) return 0;
+    cmd = cast(nk_command*)nk_buffer_alloc(b.base,NK_BUFFER_FRONT,size,align_);
+    if (!cmd) return 0;
+
+    /* make sure the offset to the next command is aligned */
+    b.last = cast(nk_size)(cast(nk_byte*)cmd - cast(nk_byte*)b.base.memory.ptr);
+    unaligned = cast(nk_byte*)cmd + size;
+    memory = nk_align_ptr(unaligned, align_);
+    alignment = cast(nk_size)(cast(nk_byte*)memory - cast(nk_byte*)unaligned);
+    version(NK_ZERO_COMMAND_MEMORY) {
+        nk_memset(cmd, 0, size + alignment);
+    }
+
+    cmd.type = t;
+    cmd.next = b.base.allocated + alignment;
+    version(NK_INCLUDE_COMMAND_USERDATA) {
+        cmd.userdata = b.userdata;
+    }
+    b.end = cmd.next;
+    return cmd;
+}
+
+void nk_draw_image(nk_command_buffer* b, nk_rect r, const(nk_image)* img, nk_color col)
+{
+    nk_command_image *cmd;
+    assert(b);
+    if (!b) return;
+    if (b.use_clipping) {
+        const nk_rect *c = &b.clip;
+        if (c.w == 0 || c.h == 0 || !nk_intersect(r.x, r.y, r.w, r.h, c.x, c.y, c.w, c.h))
+            return;
+    }
+
+    cmd = cast(nk_command_image*)nk_command_buffer_push(b, NK_COMMAND_IMAGE, (*cmd).sizeof);
+    if (!cmd) return;
+    cmd.x = cast(short)r.x;
+    cmd.y = cast(short)r.y;
+    cmd.w = cast(ushort)nk_max(0, r.w);
+    cmd.h = cast(ushort)nk_max(0, r.h);
+    cmd.img = cast(nk_image)*img;
+    cmd.col = col;
+}
+
 void nk_draw_text(nk_command_buffer*, nk_rect, const(char)* text, int len, const(nk_user_font)*, nk_color, nk_color);
 void nk_push_scissor(nk_command_buffer*, nk_rect);
 void nk_push_custom(nk_command_buffer*, nk_rect, nk_command_custom_callback, nk_handle usr);

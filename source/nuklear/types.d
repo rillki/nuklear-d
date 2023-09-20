@@ -1,25 +1,6 @@
 module nuklear.types;
 
-enum NuklearSupport {
-    noLibrary,
-    badLibrary,
-    Nuklear4,
-}
-
-version (NK_ALL)
-{
-    version = NK_INCLUDE_FIXED_TYPES;
-    version = NK_INCLUDE_DEFAULT_ALLOCATOR;
-    version = NK_INCLUDE_STANDARD_IO;
-    version = NK_INCLUDE_STANDARD_VARARGS;
-    version = NK_INCLUDE_VERTEX_BUFFER_OUTPUT;
-    version = NK_INCLUDE_FONT_BAKING;
-    version = NK_INCLUDE_DEFAULT_FONT;
-    version = NK_INCLUDE_COMMAND_USERDATA;
-    version = NK_BUTTON_TRIGGER_ON_RELEASE;
-    version = NK_ZERO_COMMAND_MEMORY;
-    version = NK_UINT_DRAW_INDEX;
-}
+import nuklear.utils;
 
 enum NK_UNDEFINED = -1.0f;
 enum NK_UTF_INVALID = 0xFFFD;
@@ -30,10 +11,18 @@ enum NK_SCROLLBAR_HIDING_TIMEOUT = 4.0f;
 enum NK_DEFAULT_COMMAND_BUFFER_SIZE = 4*1024;
 enum NK_POOL_DEFAULT_CAPACITY = 16;
 
-pragma(inline, true) {
-    auto NK_FLAG(T)(T x) { return 1 << x; }
-    auto NK_MAX(T)(T a, T b) {return a < b? b:a;} 
-}
+enum nk_null_rect = nk_rect(-8192.0f, -8192.0f, 16_384, 16_384);
+enum nk_red = nk_color(255,0,0,255);
+enum nk_green = nk_color(0,255,0,255);
+enum nk_blue = nk_color(0,0,255,255);
+enum nk_white = nk_color(255,255,255,255);
+enum nk_black = nk_color(0,0,0,255);
+enum nk_yellow = nk_color(255,255,0,255);
+
+static nk_byte[NK_UTF_SIZE+1] nk_utfbyte = [0x80, 0, 0xC0, 0xE0, 0xF0];
+static nk_byte[NK_UTF_SIZE+1] nk_utfmask = [0xC0, 0x80, 0xE0, 0xF0, 0xF8];
+static nk_uint[NK_UTF_SIZE+1] nk_utfmin = [0, 0, 0x80, 0x800, 0x10000];
+static nk_uint[NK_UTF_SIZE+1] nk_utfmax = [0x10FFFF, 0x7F, 0x7FF, 0xFFFF, 0x10FFFF];
 
 import core.stdc.stdint;
 alias nk_char = byte;
@@ -162,9 +151,9 @@ enum nk_anti_aliasing { NK_ANTI_ALIASING_OFF, NK_ANTI_ALIASING_ON };
 enum nk_convert_result {
     NK_CONVERT_SUCCESS = 0,
     NK_CONVERT_INVALID_PARAM = 1,
-    NK_CONVERT_COMMAND_BUFFER_FULL = NK_FLAG(1),
-    NK_CONVERT_VERTEX_BUFFER_FULL = NK_FLAG(2),
-    NK_CONVERT_ELEMENT_BUFFER_FULL = NK_FLAG(3)
+    NK_CONVERT_COMMAND_BUFFER_FULL = nk_flag(1),
+    NK_CONVERT_VERTEX_BUFFER_FULL = nk_flag(2),
+    NK_CONVERT_ELEMENT_BUFFER_FULL = nk_flag(3)
 }
 
 struct nk_draw_null_texture {
@@ -188,17 +177,17 @@ struct nk_convert_config {
 // WINDOW
 
 enum nk_panel_flags {
-    NK_WINDOW_BORDER            = NK_FLAG(0),
-    NK_WINDOW_MOVABLE           = NK_FLAG(1),
-    NK_WINDOW_SCALABLE          = NK_FLAG(2),
-    NK_WINDOW_CLOSABLE          = NK_FLAG(3),
-    NK_WINDOW_MINIMIZABLE       = NK_FLAG(4),
-    NK_WINDOW_NO_SCROLLBAR      = NK_FLAG(5),
-    NK_WINDOW_TITLE             = NK_FLAG(6),
-    NK_WINDOW_SCROLL_AUTO_HIDE  = NK_FLAG(7),
-    NK_WINDOW_BACKGROUND        = NK_FLAG(8),
-    NK_WINDOW_SCALE_LEFT        = NK_FLAG(9),
-    NK_WINDOW_NO_INPUT          = NK_FLAG(10)
+    NK_WINDOW_BORDER            = nk_flag(0),
+    NK_WINDOW_MOVABLE           = nk_flag(1),
+    NK_WINDOW_SCALABLE          = nk_flag(2),
+    NK_WINDOW_CLOSABLE          = nk_flag(3),
+    NK_WINDOW_MINIMIZABLE       = nk_flag(4),
+    NK_WINDOW_NO_SCROLLBAR      = nk_flag(5),
+    NK_WINDOW_TITLE             = nk_flag(6),
+    NK_WINDOW_SCROLL_AUTO_HIDE  = nk_flag(7),
+    NK_WINDOW_BACKGROUND        = nk_flag(8),
+    NK_WINDOW_SCALE_LEFT        = nk_flag(9),
+    NK_WINDOW_NO_INPUT          = nk_flag(10)
 }
 
 // LIST VIEW
@@ -222,12 +211,12 @@ enum nk_widget_layout_states {
 }
 
 enum nk_widget_states {
-    NK_WIDGET_STATE_MODIFIED    = NK_FLAG(1),
-    NK_WIDGET_STATE_INACTIVE    = NK_FLAG(2), /* widget is neither active nor hovered */
-    NK_WIDGET_STATE_ENTERED     = NK_FLAG(3), /* widget has been hovered on the current frame */
-    NK_WIDGET_STATE_HOVER       = NK_FLAG(4), /* widget is being hovered */
-    NK_WIDGET_STATE_ACTIVED     = NK_FLAG(5),/* widget is currently activated */
-    NK_WIDGET_STATE_LEFT        = NK_FLAG(6), /* widget is from this frame on not hovered anymore */
+    NK_WIDGET_STATE_MODIFIED    = nk_flag(1),
+    NK_WIDGET_STATE_INACTIVE    = nk_flag(2), /* widget is neither active nor hovered */
+    NK_WIDGET_STATE_ENTERED     = nk_flag(3), /* widget has been hovered on the current frame */
+    NK_WIDGET_STATE_HOVER       = nk_flag(4), /* widget is being hovered */
+    NK_WIDGET_STATE_ACTIVED     = nk_flag(5),/* widget is currently activated */
+    NK_WIDGET_STATE_LEFT        = nk_flag(6), /* widget is from this frame on not hovered anymore */
     NK_WIDGET_STATE_HOVERED     = NK_WIDGET_STATE_HOVER|NK_WIDGET_STATE_MODIFIED, /* widget is being hovered */
     NK_WIDGET_STATE_ACTIVE      = NK_WIDGET_STATE_ACTIVED|NK_WIDGET_STATE_MODIFIED /* widget is currently activated */
 }
@@ -253,18 +242,18 @@ enum nk_text_alignment {
 
 enum nk_edit_flags {
     NK_EDIT_DEFAULT                 = 0,
-    NK_EDIT_READ_ONLY               = NK_FLAG(0),
-    NK_EDIT_AUTO_SELECT             = NK_FLAG(1),
-    NK_EDIT_SIG_ENTER               = NK_FLAG(2),
-    NK_EDIT_ALLOW_TAB               = NK_FLAG(3),
-    NK_EDIT_NO_CURSOR               = NK_FLAG(4),
-    NK_EDIT_SELECTABLE              = NK_FLAG(5),
-    NK_EDIT_CLIPBOARD               = NK_FLAG(6),
-    NK_EDIT_CTRL_ENTER_NEWLINE      = NK_FLAG(7),
-    NK_EDIT_NO_HORIZONTAL_SCROLL    = NK_FLAG(8),
-    NK_EDIT_ALWAYS_INSERT_MODE      = NK_FLAG(9),
-    NK_EDIT_MULTILINE               = NK_FLAG(10),
-    NK_EDIT_GOTO_END_ON_ACTIVATE    = NK_FLAG(11)
+    NK_EDIT_READ_ONLY               = nk_flag(0),
+    NK_EDIT_AUTO_SELECT             = nk_flag(1),
+    NK_EDIT_SIG_ENTER               = nk_flag(2),
+    NK_EDIT_ALLOW_TAB               = nk_flag(3),
+    NK_EDIT_NO_CURSOR               = nk_flag(4),
+    NK_EDIT_SELECTABLE              = nk_flag(5),
+    NK_EDIT_CLIPBOARD               = nk_flag(6),
+    NK_EDIT_CTRL_ENTER_NEWLINE      = nk_flag(7),
+    NK_EDIT_NO_HORIZONTAL_SCROLL    = nk_flag(8),
+    NK_EDIT_ALWAYS_INSERT_MODE      = nk_flag(9),
+    NK_EDIT_MULTILINE               = nk_flag(10),
+    NK_EDIT_GOTO_END_ON_ACTIVATE    = nk_flag(11)
 }
 
 enum nk_edit_types {
@@ -275,11 +264,11 @@ enum nk_edit_types {
 }
 
 enum nk_edit_events {
-    NK_EDIT_ACTIVE      = NK_FLAG(0), /* edit widget is currently being modified */
-    NK_EDIT_INACTIVE    = NK_FLAG(1), /* edit widget is not active and is not being modified */
-    NK_EDIT_ACTIVATED   = NK_FLAG(2), /* edit widget went from state inactive to state active */
-    NK_EDIT_DEACTIVATED = NK_FLAG(3), /* edit widget went from state active to state inactive */
-    NK_EDIT_COMMITED    = NK_FLAG(4) /* edit widget has received an enter and lost focus */
+    NK_EDIT_ACTIVE      = nk_flag(0), /* edit widget is currently being modified */
+    NK_EDIT_INACTIVE    = nk_flag(1), /* edit widget is not active and is not being modified */
+    NK_EDIT_ACTIVATED   = nk_flag(2), /* edit widget went from state inactive to state active */
+    NK_EDIT_DEACTIVATED = nk_flag(3), /* edit widget went from state active to state inactive */
+    NK_EDIT_COMMITED    = nk_flag(4) /* edit widget has received an enter and lost focus */
 }
 
 // STYLE
@@ -1389,13 +1378,13 @@ enum NK_CHART_MAX_SLOT = 4;
 
 enum nk_panel_type {
     NK_PANEL_NONE       = 0,
-    NK_PANEL_WINDOW     = NK_FLAG(0),
-    NK_PANEL_GROUP      = NK_FLAG(1),
-    NK_PANEL_POPUP      = NK_FLAG(2),
-    NK_PANEL_CONTEXTUAL = NK_FLAG(4),
-    NK_PANEL_COMBO      = NK_FLAG(5),
-    NK_PANEL_MENU       = NK_FLAG(6),
-    NK_PANEL_TOOLTIP    = NK_FLAG(7)
+    NK_PANEL_WINDOW     = nk_flag(0),
+    NK_PANEL_GROUP      = nk_flag(1),
+    NK_PANEL_POPUP      = nk_flag(2),
+    NK_PANEL_CONTEXTUAL = nk_flag(4),
+    NK_PANEL_COMBO      = nk_flag(5),
+    NK_PANEL_MENU       = nk_flag(6),
+    NK_PANEL_TOOLTIP    = nk_flag(7)
 }
 
 enum nk_panel_set {
@@ -1486,20 +1475,20 @@ struct nk_panel {
 enum NK_WINDOW_MAX_NAME = 64;
 
 enum nk_window_flags {
-    NK_WINDOW_PRIVATE       = NK_FLAG(11),
+    NK_WINDOW_PRIVATE       = nk_flag(11),
     NK_WINDOW_DYNAMIC       = NK_WINDOW_PRIVATE,
     /* special window type growing up in height while being filled to a certain maximum height */
-    NK_WINDOW_ROM           = NK_FLAG(12),
+    NK_WINDOW_ROM           = nk_flag(12),
     /* sets window widgets into a read only mode and does not allow input changes */
     NK_WINDOW_NOT_INTERACTIVE = NK_WINDOW_ROM|cast(nk_window_flags)nk_panel_flags.NK_WINDOW_NO_INPUT,
     /* prevents all interaction caused by input to either window or widgets inside */
-    NK_WINDOW_HIDDEN        = NK_FLAG(13),
+    NK_WINDOW_HIDDEN        = nk_flag(13),
     /* Hides window and stops any window interaction and drawing */
-    NK_WINDOW_CLOSED        = NK_FLAG(14),
+    NK_WINDOW_CLOSED        = nk_flag(14),
     /* Directly closes and frees the window at the end of the frame */
-    NK_WINDOW_MINIMIZED     = NK_FLAG(15),
+    NK_WINDOW_MINIMIZED     = nk_flag(15),
     /* marks the window as minimized */
-    NK_WINDOW_REMOVE_ROM    = NK_FLAG(16)
+    NK_WINDOW_REMOVE_ROM    = nk_flag(16)
         /* Removes read only mode at the end of the window */
 }
 
@@ -1622,7 +1611,7 @@ struct nk_configuration_stacks {
 
 // CONTEXT
 
-enum NK_VALUE_PAGE_CAPACITY = (NK_MAX(nk_window.sizeof,nk_panel.sizeof) / nk_uint.sizeof) / 2;
+enum NK_VALUE_PAGE_CAPACITY = (nk_max(nk_window.sizeof,nk_panel.sizeof) / nk_uint.sizeof) / 2;
 
 struct nk_table {
     uint seq;
