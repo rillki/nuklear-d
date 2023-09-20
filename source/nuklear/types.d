@@ -27,6 +27,8 @@ enum NK_UTF_SIZE = 4;
 enum NK_INPUT_MAX = 16;
 enum NK_MAX_NUMBER_BUFFER = 64;
 enum NK_SCROLLBAR_HIDING_TIMEOUT = 4.0f;
+enum NK_DEFAULT_COMMAND_BUFFER_SIZE = 4*1024;
+enum NK_POOL_DEFAULT_CAPACITY = 16;
 
 pragma(inline, true) {
     auto NK_FLAG(T)(T x) { return 1 << x; }
