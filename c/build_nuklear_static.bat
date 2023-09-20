@@ -16,3 +16,4 @@ ar "rcs" "libnuklear.a" "nuklear.o"
 echo "Copying Nuklear to %LIB_DIR%"
 COPY  "libnuklear.a" "%LIB_DIR%/"
 echo "Done."
+
