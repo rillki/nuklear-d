@@ -1,25 +1,5 @@
 module nuklear.types;
-
-enum NuklearSupport {
-    noLibrary,
-    badLibrary,
-    Nuklear4,
-}
-
-version (NK_ALL)
-{
-    version = NK_INCLUDE_FIXED_TYPES;
-    version = NK_INCLUDE_DEFAULT_ALLOCATOR;
-    version = NK_INCLUDE_STANDARD_IO;
-    version = NK_INCLUDE_STANDARD_VARARGS;
-    version = NK_INCLUDE_VERTEX_BUFFER_OUTPUT;
-    version = NK_INCLUDE_FONT_BAKING;
-    version = NK_INCLUDE_DEFAULT_FONT;
-    version = NK_INCLUDE_COMMAND_USERDATA;
-    version = NK_BUTTON_TRIGGER_ON_RELEASE;
-    version = NK_ZERO_COMMAND_MEMORY;
-    version = NK_UINT_DRAW_INDEX;
-}
+extern(C) @nogc nothrow:
 
 enum NK_UNDEFINED = -1.0f;
 enum NK_UTF_INVALID = 0xFFFD;
@@ -30,10 +10,10 @@ enum NK_SCROLLBAR_HIDING_TIMEOUT = 4.0f;
 
 pragma(inline, true) {
     auto NK_FLAG(T)(T x) { return 1 << x; }
-    auto NK_MAX(T)(T a, T b) {return a < b? b:a;} 
+    auto NK_MIN(T)(T a, T b) {return a < b ? a : b;} 
+    auto NK_MAX(T)(T a, T b) {return a < b ? b : a;} 
 }
 
-import core.stdc.stdint;
 alias nk_char = byte;
 alias nk_uchar = ubyte;
 alias nk_byte = ubyte;

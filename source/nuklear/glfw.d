@@ -1,4 +1,6 @@
 module nuklear.glfw;
+extern(C) nothrow:
+__gshared:
 
 import core.stdc.string;
 import core.stdc.stdlib;
@@ -8,9 +10,6 @@ import core.stdc.stdio;
 import bindbc.glfw;
 import bindbc.opengl;
 import nuklear;
-
-extern(C) nothrow:
-__gshared:
 
 enum nk_glfw_init_state {
     NK_GLFW3_DEFAULT = 0,
