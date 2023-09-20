@@ -25,7 +25,7 @@ By default `nuklear-d` uses the following set of flags:
 ]
 ```
 
-Here is the full list available flags:
+Here is the full list of available flags:
 ```
 NK_INCLUDE_FIXED_TYPES
 NK_INCLUDE_DEFAULT_ALLOCATOR
