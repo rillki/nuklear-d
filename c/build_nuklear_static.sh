@@ -13,7 +13,7 @@ else
 fi
 
 echo "Compiling Nuklear."
-gcc -c nuklear.c -o nuklear.o
+gcc -c nuklear.c -o nuklear.o -O2
 
 echo "Building Nuklear static library."
 ar rcs libnuklear.a nuklear.o 
