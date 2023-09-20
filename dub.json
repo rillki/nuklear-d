@@ -25,7 +25,7 @@
         "NK_KEYSTATE_BASED_INPUT"
     ],
     "lflags": ["-L./lib"],
-    "libs": ["nuklear", "GLEW"]
+    "libs": ["nuklear"]
 }
 
 

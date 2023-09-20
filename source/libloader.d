@@ -1,9 +1,10 @@
 module libloader;
+extern(C) @nogc nothrow:
 
 import bindbc.glfw: GLFWSupport, loadGLFW, glfwSupport;
 import bindbc.opengl: GLSupport, loadOpenGL;
 
-import std.stdio: writefln;
+import core.stdc.stdio: printf;
 
 /++
     Loads a shared GLFW library
@@ -21,14 +22,14 @@ bool load_glfw() {
     // attempt to load GLFW
     auto ret = loadGLFW();
     if(ret != glfwSupport) {   
-        writefln(
-            ret == GLFWSupport.noLibrary ? "No GLFW library found!" : 
-            ret == GLFWSupport.badLibrary ? "A newer version of GLFW is needed. Please, upgrade!" : 
-            "Unknown error! Could not load OpenGL library!"
+        printf(
+            ret == GLFWSupport.noLibrary ? "No GLFW library found!\n" : 
+            ret == GLFWSupport.badLibrary ? "A newer version of GLFW is needed. Please, upgrade!\n" : 
+            "Unknown error! Could not load OpenGL library!\n"
         );
         return false;
     }
-    writefln("GLFW successfully loaded, version: %s", ret);
+    printf("GLFW successfully loaded, version: %d\n", ret);
     
     return true;
 }
@@ -55,21 +56,24 @@ bool load_opengl() {
         case gl32:
         case gl31:
         case gl30:
-            writefln("OpenGL successfully loaded, version: %s", ret);
+            printf("OpenGL successfully loaded, version: %d\n", ret);
             return true;
         case badLibrary:
-            writefln("The version of the GLFW library on your system is too low. Please upgrade.");
+            printf("The version of the GLFW library on your system is too low. Please upgrade.\n");
             break;
         case noContext:
-            writefln("Create an OpenGL context before attempting to load OpenGL!");
+            printf("Create an OpenGL context before attempting to load OpenGL!\n");
             break;
         case noLibrary:
-            writefln("OpenGL library not found!");
+            printf("OpenGL library not found!");
             break;
         default:
             import bindbc.loader: errors;
-            writefln("Unknown error! Could not load OpenGL library! Error code: %s", ret);
-            writefln("Other errors: %s", errors);
+            printf("Unknown error! Could not load OpenGL library! Error code: %d\n", ret);
+            foreach(i, e; errors)
+            {
+                printf("%2zu: %s | %s\n", i, e.error, e.message);
+            }
             break;
     }
 

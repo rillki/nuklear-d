@@ -1,18 +1,17 @@
 module app;
 
-extern(C) @nogc 
+extern(C) @nogc
 void error_callback(int e, const(char)* d) nothrow { 
     import core.stdc.stdio: printf; 
     printf("Error %d: %s\n", e, d); 
 }
 
 void main() {
-    import std.stdio: writeln;
+    import core.stdc.stdio: printf;
     import libloader;
     import bindbc.glfw;
     import bindbc.opengl;
     import nuklear;
-    import nuklear.glew;
 
     // nuklear constants
     enum MAX_VERTEX_BUFFER = 512 * 1024;
@@ -32,14 +31,14 @@ void main() {
 
     // load GLFW
     if(!load_glfw()) {
-        writeln("Failed to load GLFW library!");
+        printf("Failed to load GLFW library!\n");
         return;
     }
 
     // setup glfw
     glfwSetErrorCallback(&error_callback);
     if(!glfwInit()) {
-        writeln("Failed to initialize GLFW library!");
+        printf("Failed to initialize GLFW library!\n");
         return;
     }
     scope(exit) { glfwTerminate(); }
@@ -56,7 +55,7 @@ void main() {
     // create an actual window and attach current context
     win = glfwCreateWindow(wWidth, wHeight, wTitle, null, null);
     if(win is null) {
-        writeln("Failed to create a GLFW window!");
+        printf("Failed to create a GLFW window!\n");
         return;
     }
     scope(exit) { glfwDestroyWindow(win); win = null; }
@@ -65,21 +64,18 @@ void main() {
     glfwMakeContextCurrent(win);
     glfwGetWindowSize(win, &width, &height);
 
-    // --- 3. load OpenGL library
+    // load OpenGL library
     if(!load_opengl()) {        
-        writeln("Failed to load OpenGL library!");
+        printf("Failed to load OpenGL library!\n");
         return;
     }
 
+    // init
     glViewport(0, 0, wWidth, wHeight);
-    auto val = glewInit();
-    if (val != GLEW_OK) {
-        writeln( "Failed to setup GLEW: ", val);
-        // return;
-    }
     glfwSetInputMode(win, GLFW_STICKY_KEYS, true);
     glfwSwapInterval(1);
 
+    // create nk context
     ctx = nk_glfw3_init(&glfw, win, NK_GLFW3_INSTALL_CALLBACKS);
     scope(exit) { nk_glfw3_shutdown(&glfw); }
     {
@@ -111,7 +107,7 @@ void main() {
             static int property = 20;
             nk_layout_row_static(ctx, 30, 80, 1);
             if (nk_button_label(ctx, "button"))
-                writeln("button pressed");
+                printf("button pressed\n");
 
             nk_layout_row_dynamic(ctx, 30, 2);
             if (nk_option_label(ctx, "easy", op == EASY)) op = EASY;

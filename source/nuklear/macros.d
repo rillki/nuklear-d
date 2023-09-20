@@ -1,9 +1,3 @@
-
-//          Copyright Mateusz Muszyński 2018.
-// Distributed under the Boost Software License, Version 1.0.
-//    (See accompanying file LICENSE_1_0.txt or copy at
-//          http://www.boost.org/LICENSE_1_0.txt)
-
 module nuklear.macros;
 
 import nuklear.types;
@@ -24,25 +18,10 @@ version (NK_ALL)
     version = NK_UINT_DRAW_INDEX;
 }
 
-version (D_BetterC)
-{
-}
-else
-{
-    version = gc_and_throw;
-}
-
 @nogc nothrow {
     alias nk_command_delegate = void delegate(const(nk_command)*);
     version(NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
         alias nk_draw_command_delegate = void delegate(const(nk_draw_command)*);
-    }
-}
-
-version(gc_and_throw) {
-    alias nk_command_delegate_gc = void delegate(const(nk_command)*);
-    version(NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
-        alias nk_draw_command_delegate_gc = void delegate(const(nk_draw_command)*);
     }
 }
 
@@ -59,21 +38,6 @@ pragma(inline, true) {
         void nk_draw_foreach(nk_context *ctx, const(nk_buffer) *b, nk_draw_command_delegate block) {
             for (auto c = nk__draw_begin(ctx, b); c != null; c = nk__draw_next(c, b, ctx)) {
                 block(c);
-            }
-        }
-    }
-    version(gc_and_throw) {
-        void nk_foreach(nk_context* ctx, nk_command_delegate_gc block) {
-            for (auto c = nk__begin(ctx); c != null; c = nk__next(ctx, c)) {
-                block(c);
-            }
-        }
-
-        version(NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
-            void nk_draw_foreach(nk_context *ctx, const(nk_buffer) *b, nk_draw_command_delegate_gc block) {
-                for (auto c = nk__draw_begin(ctx, b); c != null; c = nk__draw_next(c, b, ctx)) {
-                    block(c);
-                }
             }
         }
     }
@@ -112,14 +76,4 @@ pragma(inline, true) {
         }
     }
 }
-version(gc_and_throw) {
-    pragma(inline, true) {
-        version(NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
-            void nk_draw_list_foreach(const(nk_draw_list) *can, const(nk_buffer) *b, nk_draw_command_delegate_gc block) {
-                for (auto c = nk__draw_list_begin(can, b); c != null; c = nk__draw_list_next(c, b, can)) {
-                    block(c);
-                }
-            }
-        }
-    }
-}
+
