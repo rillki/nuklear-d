@@ -7,9 +7,9 @@
         "bindbc-glfw": "~>1.0.1",
         "bindbc-opengl": "~>1.0.3"
     },
-    "description": "D translation of Nuklear library from C.",
+    "description": "D static bindings to Nuklear library.",
     "license": "Unlicense",
-    "name": "nuklear-d",
+    "name": "nuklear_d",
     "targetPath": "bin",
     "versions": [
         "GLFW_33",
@@ -24,7 +24,26 @@
         "NK_INCLUDE_DEFAULT_FONT",
         "NK_KEYSTATE_BASED_INPUT"
     ],
-    "lflags": ["-L$PACKAGE_DIR/lib"],
+    "configurations": [
+        {
+            "name": "osx",
+            "platforms": ["osx"],
+            "targetType": "executable",
+            "lflags": ["-L$PACKAGE_DIR/lib/osx"]
+        },
+        {
+            "name": "linux",
+            "platforms": ["linux"],
+            "targetType": "executable",
+            "lflags": ["-L$PACKAGE_DIR/lib/linux"]
+        },
+        {
+            "name": "windows",
+            "platforms": ["windows"],
+            "targetType": "executable",
+            "lflags": ["-L$PACKAGE_DIR/lib/windows_x64"]
+        }
+    ],
     "libs": ["nuklear"]
 }
 
