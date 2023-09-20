@@ -1,5 +1,7 @@
 # nuklear-d
-This project provides D static bindings to Nuklear GUI library.
+This project provides D static bindings to Nuklear GUI library. Bindings were originally taken from [bindbc-nuklear](https://github.com/Timu5/bindbc-nuklear) and stripped of dynamic loading. 
+
+*The main idea is: `dub add nuklear-d; dub run`. It should just work.*
 
 ### Library
 Add library to your project using DUB:
