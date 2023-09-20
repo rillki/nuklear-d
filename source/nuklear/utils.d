@@ -15,6 +15,10 @@ pragma(inline, true)
         assert(ptr);
         nk_memset(ptr, 0, size);
     }
+    auto nk_container_of(P, T, M)(P ptr, T type, M member) 
+    {
+        return cast(T*)(cast(void*)(cast(char*)(1 ? (ptr): &(cast(T*)0).member) - type.member.offsetof));
+    }
 }
 
 void* nk_malloc(nk_handle unused, void* old, nk_size size)

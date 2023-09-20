@@ -50,19 +50,222 @@ bool nk_init(nk_context* ctx, nk_allocator* alloc, const(nk_user_font)* font)
     return 1;
 }
 
-void nk_pool_init(struct nk_pool *pool, struct nk_allocator *alloc,
-    unsigned int capacity)
+void nk_pool_init(nk_pool *pool, nk_allocator *alloc, uint capacity)
 {
-    NK_ASSERT(capacity >= 1);
-    nk_zero(pool, sizeof(*pool));
-    pool->alloc = *alloc;
-    pool->capacity = capacity;
-    pool->type = NK_BUFFER_DYNAMIC;
-    pool->pages = 0;
+    assert(capacity >= 1);
+    nk_zero(pool, (*pool).sizeof);
+    pool.alloc = *alloc;
+    pool.capacity = capacity;
+    pool.type = NK_BUFFER_DYNAMIC;
+    pool.pages = null;
 }
 
-bool nk_init_custom(nk_context*, nk_buffer* cmds, nk_buffer* pool, const(nk_user_font)*);
-void nk_clear(nk_context*);
+void nk_pool_init_fixed(nk_pool *pool, void *memory, nk_size size)
+{
+    nk_zero(pool, (*pool).sizeof);
+    assert(size >= nk_page.sizeof);
+    if (size < nk_page.sizeof) return;
+    /* first nk_page_element is embedded in nk_page, additional elements follow in adjacent space */
+    pool.capacity = cast(uint)(1 + (size - nk_page.sizeof) / nk_page_element.sizeof);
+    pool.pages = cast(nk_page*)memory;
+    pool.type = NK_BUFFER_FIXED;
+    pool.size = size;
+}
+
+bool nk_init_custom(nk_context* ctx, nk_buffer* cmds, nk_buffer* pool, const(nk_user_font)* font)
+{
+    assert(cmds);
+    assert(pool);
+    if (!cmds || !pool) return 0;
+
+    nk_setup(ctx, font);
+    ctx.memory = *cmds;
+    if (pool.type == NK_BUFFER_FIXED) {
+        /* take memory from buffer and alloc fixed pool */
+        nk_pool_init_fixed(&ctx.pool, pool.memory.ptr, pool.memory.size);
+    } else {
+        /* create dynamic pool from buffer allocator */
+        nk_allocator *alloc = &pool.pool;
+        nk_pool_init(&ctx.pool, alloc, NK_POOL_DEFAULT_CAPACITY);
+    }
+    ctx.use_pool = nk_true;
+    return 1;
+}
+
+void nk_link_page_element_into_freelist(nk_context *ctx, nk_page_element *elem)
+{
+    /* link table into freelist */
+    if (!ctx.freelist) {
+        ctx.freelist = elem;
+    } else {
+        elem.next = ctx.freelist;
+        ctx.freelist = elem;
+    }
+}
+
+void nk_free_page_element(nk_context *ctx, nk_page_element *elem)
+{
+    /* we have a pool so just add to free list */
+    if (ctx.use_pool) {
+        nk_link_page_element_into_freelist(ctx, elem);
+        return;
+    }
+    /* if possible remove last element from back of fixed memory buffer */
+    {
+        void* elem_end = cast(void*)(elem + 1);
+        void* buffer_end = cast(nk_byte*)ctx.memory.memory.ptr + ctx.memory.size;
+        if (elem_end == buffer_end)
+            ctx.memory.size -= nk_page_element.sizeof;
+        else nk_link_page_element_into_freelist(ctx, elem);
+    }
+}
+
+void nk_remove_table(nk_window *win, nk_table *tbl)
+{
+    if (win.tables == tbl)
+        win.tables = tbl.next;
+    if (tbl.next)
+        tbl.next.prev = tbl.prev;
+    if (tbl.prev)
+        tbl.prev.next = tbl.next;
+    tbl.next = null;
+    tbl.prev = null;
+}
+
+void nk_free_table(nk_context *ctx, nk_table *tbl)
+{
+    nk_page_data *pd = nk_container_of(tbl, nk_page_data(), tbl);
+    nk_page_element *pe = nk_container_of(pd, nk_page_element(), data);
+    nk_free_page_element(ctx, pe);
+}
+
+void nk_free_window(nk_context *ctx, nk_window *win)
+{
+    /* unlink windows from list */
+    nk_table *it = win.tables;
+    if (win.popup.win) {
+        nk_free_window(ctx, win.popup.win);
+        win.popup.win = null;
+    }
+    win.next = null;
+    win.prev = null;
+
+    while (it) {
+        /*free window state tables */
+        nk_table *n = it.next;
+        nk_remove_table(win, it);
+        nk_free_table(ctx, it);
+        if (it == win.tables)
+            win.tables = n;
+        it = n;
+    }
+
+    /* link windows into freelist */
+    {
+        nk_page_data *pd = nk_container_of(win, nk_page_data, win);
+        nk_page_element *pe = nk_container_of(pd, nk_page_element, data);
+        nk_free_page_element(ctx, pe);
+    }
+}
+
+void nk_remove_window(nk_context *ctx, nk_window *win) 
+{
+    if (win == ctx.begin || win == ctx.end) {
+        if (win == ctx.begin) {
+            ctx.begin = win.next;
+            if (win.next)
+                win.next.prev = null;
+        }
+        if (win == ctx.end) {
+            ctx.end = win.prev;
+            if (win.prev)
+                win.prev.next = null;
+        }
+    } else {
+        if (win.next)
+            win.next.prev = win.prev;
+        if (win.prev)
+            win.prev.next = win.next;
+    }
+    if (win == ctx.active || !ctx.active) {
+        ctx.active = ctx.end;
+        if (ctx.end)
+            ctx.end.flags &= ~cast(nk_flags)NK_WINDOW_ROM;
+    }
+    win.next = null;
+    win.prev = null;
+    ctx.count--;
+}
+
+// checkpoint
+void nk_clear(nk_context* ctx)
+{
+    nk_window *iter;
+    nk_window *next;
+    assert(ctx);
+
+    if (!ctx) return;
+    if (ctx.use_pool)
+        nk_buffer_clear(&ctx.memory);
+    else nk_buffer_reset(&ctx.memory, NK_BUFFER_FRONT);
+
+    ctx.build = 0;
+    ctx.memory.calls = 0;
+    ctx.last_widget_state = 0;
+    ctx.style.cursor_active = ctx.style.cursors[NK_CURSOR_ARROW];
+    nk_memset(&ctx.overlay, 0, ctx.overlay.sizeof);
+
+    /* garbage collector */
+    iter = ctx.begin;
+    while (iter) {
+        /* make sure valid minimized windows do not get removed */
+        if ((iter.flags & NK_WINDOW_MINIMIZED) &&
+            !(iter.flags & NK_WINDOW_CLOSED) &&
+            iter.seq == ctx.seq) {
+            iter = iter.next;
+            continue;
+        }
+        /* remove hotness from hidden or closed windows*/
+        if (((iter.flags & NK_WINDOW_HIDDEN) ||
+            (iter.flags & NK_WINDOW_CLOSED)) &&
+            iter == ctx.active) {
+            ctx.active = iter.prev;
+            ctx.end = iter.prev;
+            if (!ctx.end)
+                ctx.begin = null;
+            if (ctx.active)
+                ctx.active.flags &= ~cast(uint)NK_WINDOW_ROM;
+        }
+        /* free unused popup windows */
+        if (iter.popup.win && iter.popup.win.seq != ctx.seq) {
+            nk_free_window(ctx, iter.popup.win);
+            iter.popup.win = 0;
+        }
+        /* remove unused window state tables */
+        {
+            nk_table* n, it = iter.tables;
+            while (it) {
+                n = it.next;
+                if (it.seq != ctx.seq) {
+                    nk_remove_table(iter, it);
+                    nk_zero(it, nk_page_data.sizeof);
+                    nk_free_table(ctx, it);
+                    if (it == iter.tables)
+                        iter.tables = n;
+                } it = n;
+            }
+        }
+        /* window itself is not used anymore so free */
+        if (iter.seq != ctx.seq || iter.flags & NK_WINDOW_CLOSED) {
+            next = iter.next;
+            nk_remove_window(ctx, iter);
+            nk_free_window(ctx, iter);
+            iter = next;
+        } else iter = iter.next;
+    }
+    ctx.seq++;
+}
+
 void nk_free(nk_context*);
 version(NK_INCLUDE_COMMAND_USERDATA) {
     void nk_set_user_data(nk_context*, nk_handle handle);
@@ -1066,8 +1269,38 @@ void nk_buffer_init_fixed(nk_buffer* b, void* m, nk_size size)
 void nk_buffer_info(nk_memory_status*, nk_buffer*);
 void nk_buffer_push(nk_buffer*, nk_buffer_allocation_type type, const(void)* memory, nk_size size, nk_size align_);
 void nk_buffer_mark(nk_buffer*, nk_buffer_allocation_type type);
-void nk_buffer_reset(nk_buffer*, nk_buffer_allocation_type type);
-void nk_buffer_clear(nk_buffer*);
+
+void nk_buffer_reset(nk_buffer* buffer, nk_buffer_allocation_type type)
+{
+    assert(buffer);
+    if (!buffer) return;
+    if (type == NK_BUFFER_BACK) {
+        /* reset back buffer either back to marker or empty */
+        buffer.needed -= (buffer.memory.size - buffer.marker[type].offset);
+        if (buffer.marker[type].active)
+            buffer.size = buffer.marker[type].offset;
+        else buffer.size = buffer.memory.size;
+        buffer.marker[type].active = nk_false;
+    } else {
+        /* reset front buffer either back to back marker or empty */
+        buffer.needed -= (buffer.allocated - buffer.marker[type].offset);
+        if (buffer.marker[type].active)
+            buffer.allocated = buffer.marker[type].offset;
+        else buffer.allocated = 0;
+        buffer.marker[type].active = nk_false;
+    }
+}
+
+void nk_buffer_clear(nk_buffer* b)
+{
+    assert(b);
+    if (!b) return;
+    b.allocated = 0;
+    b.size = b.memory.size;
+    b.calls = 0;
+    b.needed = 0;
+}
+
 void nk_buffer_free(nk_buffer*);
 void* nk_buffer_memory(nk_buffer*);
 const(void)* nk_buffer_memory_const(const(nk_buffer)*);
