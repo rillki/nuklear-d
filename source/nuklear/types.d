@@ -50,22 +50,22 @@ struct nk_recti { short x,y,w,h; }
 alias nk_glyph = char[NK_UTF_SIZE];
 union nk_handle { void *ptr; int id; }
 struct nk_image { nk_handle handle; short w,h; ushort[4] region; }
-struct nk_nine_slice { nk_image img; ushort l, t, r, b;};
+struct nk_nine_slice { nk_image img; ushort l, t, r, b;}
 struct nk_cursor { nk_image img; nk_vec2 size, offset; }
 struct nk_scroll { uint x, y; }
 
-enum nk_heading         { NK_UP, NK_RIGHT, NK_DOWN, NK_LEFT };
-enum nk_button_behavior { NK_BUTTON_DEFAULT, NK_BUTTON_REPEATER };
-enum nk_modify          { NK_FIXED = nk_false, NK_MODIFIABLE = nk_true };
-enum nk_orientation     { NK_VERTICAL, NK_HORIZONTAL };
-enum nk_collapse_states { NK_MINIMIZED = nk_false, NK_MAXIMIZED = nk_true };
-enum nk_show_states     { NK_HIDDEN = nk_false, NK_SHOWN = nk_true };
-enum nk_chart_type      { NK_CHART_LINES, NK_CHART_COLUMN, NK_CHART_MAX };
-enum nk_chart_event     { NK_CHART_HOVERING = 0x01, NK_CHART_CLICKED = 0x02 };
-enum nk_color_format    { NK_RGB, NK_RGBA };
-enum nk_popup_type      { NK_POPUP_STATIC, NK_POPUP_DYNAMIC };
-enum nk_layout_format   { NK_DYNAMIC, NK_STATIC };
-enum nk_tree_type       { NK_TREE_NODE, NK_TREE_TAB };
+enum nk_heading         { NK_UP, NK_RIGHT, NK_DOWN, NK_LEFT }
+enum nk_button_behavior { NK_BUTTON_DEFAULT, NK_BUTTON_REPEATER }
+enum nk_modify          { NK_FIXED = nk_false, NK_MODIFIABLE = nk_true }
+enum nk_orientation     { NK_VERTICAL, NK_HORIZONTAL }
+enum nk_collapse_states { NK_MINIMIZED = nk_false, NK_MAXIMIZED = nk_true }
+enum nk_show_states     { NK_HIDDEN = nk_false, NK_SHOWN = nk_true }
+enum nk_chart_type      { NK_CHART_LINES, NK_CHART_COLUMN, NK_CHART_MAX }
+enum nk_chart_event     { NK_CHART_HOVERING = 0x01, NK_CHART_CLICKED = 0x02 }
+enum nk_color_format    { NK_RGB, NK_RGBA }
+enum nk_popup_type      { NK_POPUP_STATIC, NK_POPUP_DYNAMIC }
+enum nk_layout_format   { NK_DYNAMIC, NK_STATIC }
+enum nk_tree_type       { NK_TREE_NODE, NK_TREE_TAB }
 
 extern(C) @nogc nothrow {
     alias nk_plugin_alloc = void* function(nk_handle, void *old, nk_size);
@@ -146,7 +146,7 @@ enum nk_buttons {
 
 // DRAWING
 
-enum nk_anti_aliasing { NK_ANTI_ALIASING_OFF, NK_ANTI_ALIASING_ON };
+enum nk_anti_aliasing { NK_ANTI_ALIASING_OFF, NK_ANTI_ALIASING_ON }
 
 enum nk_convert_result {
     NK_CONVERT_SUCCESS = 0,
@@ -517,7 +517,7 @@ struct nk_buffer {
     /* number of allocation calls */
     nk_size size;
     /* current size of the buffer */
-};
+}
 
 // STRING
 
@@ -883,7 +883,7 @@ version(NK_INCLUDE_VERTEX_BUFFER_OUTPUT)
         nk_size offset;
     }
     
-    const(nk_draw_vertex_layout_element) NK_VERTEX_LAYOUT_END = { nk_draw_vertex_layout_attribute.NK_VERTEX_ATTRIBUTE_COUNT,nk_draw_vertex_layout_format.NK_FORMAT_COUNT,0 };
+    const(nk_draw_vertex_layout_element) NK_VERTEX_LAYOUT_END = { nk_draw_vertex_layout_attribute.NK_VERTEX_ATTRIBUTE_COUNT,nk_draw_vertex_layout_format.NK_FORMAT_COUNT,0 }
 
     struct nk_draw_command {
         uint elem_count;
@@ -946,7 +946,7 @@ union nk_style_item_data {
 struct nk_style_item {
     nk_style_item_type type;
     nk_style_item_data data;
-};
+}
 
 struct nk_style_text {
     nk_color color;

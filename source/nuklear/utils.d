@@ -24,9 +24,9 @@ pragma(inline, true)
         assert(ptr);
         nk_memset(ptr, 0, size);
     }
-    auto nk_container_of(P, T)(P ptr, T type, size_t member_offsetof) 
+    auto nk_container_of(P, T)(P ptr, T type, const(char)* member) 
     {
-        return cast(T*)(cast(void*)(cast(char*)(1 ? (ptr) : ptr - member_offsetof)));
+        return cast(T*)(cast(void*)(cast(char*)(ptr - __traits(getMember, type, member).offsetof)));
     }
 }
 

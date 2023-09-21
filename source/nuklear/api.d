@@ -134,8 +134,8 @@ void nk_remove_table(nk_window *win, nk_table *tbl)
 
 void nk_free_table(nk_context *ctx, nk_table *tbl)
 {
-    nk_page_data *pd = nk_container_of(tbl, nk_page_data(), nk_page_data().tbl.offsetof);
-    nk_page_element *pe = nk_container_of(pd, nk_page_element(), nk_page_element().data.offsetof);
+    nk_page_data *pd = nk_container_of(tbl, nk_page_data(), "tbl");
+    nk_page_element *pe = nk_container_of(pd, nk_page_element(), "data");
     nk_free_page_element(ctx, pe);
 }
 
@@ -162,8 +162,8 @@ void nk_free_window(nk_context *ctx, nk_window *win)
 
     /* link windows into freelist */
     {
-        nk_page_data *pd = nk_container_of(win, nk_page_data(), nk_page_data().win.offsetof);
-        nk_page_element *pe = nk_container_of(pd, nk_page_element(), nk_page_element().data.offsetof);
+        nk_page_data *pd = nk_container_of(win, nk_page_data(), "win");
+        nk_page_element *pe = nk_container_of(pd, nk_page_element(), "data");
         nk_free_page_element(ctx, pe);
     }
 }
