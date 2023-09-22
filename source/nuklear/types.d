@@ -24,7 +24,6 @@ static nk_byte[NK_UTF_SIZE+1] nk_utfmask = [0xC0, 0x80, 0xE0, 0xF0, 0xF8];
 static nk_uint[NK_UTF_SIZE+1] nk_utfmin = [0, 0, 0x80, 0x800, 0x10000];
 static nk_uint[NK_UTF_SIZE+1] nk_utfmax = [0x10FFFF, 0x7F, 0x7FF, 0xFFFF, 0x10FFFF];
 
-import core.stdc.stdint;
 alias nk_char = byte;
 alias nk_uchar = ubyte;
 alias nk_byte = ubyte;
@@ -34,7 +33,7 @@ alias nk_int = int;
 alias nk_uint = uint;
 alias nk_size = size_t;
 alias nk_ptr = size_t;
-
+alias nk_bool = bool;
 alias nk_hash = uint;
 alias nk_flags = uint;
 alias nk_rune = uint;
@@ -71,6 +70,8 @@ enum nk_window_insert_location {
     NK_INSERT_BACK, /* inserts window into the back of list (front of screen) */
     NK_INSERT_FRONT /* inserts window into the front of list (back of screen) */
 }
+enum NK_INSERT_BACK = nk_window_insert_location.NK_INSERT_BACK;
+enum NK_INSERT_FRONT = nk_window_insert_location.NK_INSERT_FRONT;
 
 extern(C) @nogc nothrow {
     alias nk_plugin_alloc = void* function(nk_handle, void *old, nk_size);

@@ -11,6 +11,7 @@ pragma(inline, true)
     auto nk_max(T)(T a, T b) { return a < b ? b : a; }
     auto nk_clamp(T)(T i, T v, T x) { return nk_max(nk_min(v, x), i); }
     auto nk_between(T)(T x, T a, T b) { return a <= x && x < b; }
+    auto nk_inbox(T)(T px, T py, T x, T y, T w, T h) { return nk_between(px,x,x+w) && nk_between(py,y,y+h); }
     auto nk_intersect(T)(T x0, T y0, T w0, T h0, T x1, T y1, T w1, T h1) { return (x1 < (x0 + w0)) && (x0 < (x1 + w1)) && (y1 < (y0 + h0)) && (y0 < (y1 + h1)); }
     auto nk_ptr_add(T, P, I)(P p, I i) { return cast(T*)(cast(void*)(cast(nk_byte*)(p) + (i))); }
     auto nk_ptr_add_const(T, P, I)(P p, I i) { return cast(const(T)*)(cast(const(void)*)(cast(const(nk_byte)*)(p) + (i))); }

@@ -571,14 +571,56 @@ const(nk_command)* nk__next(nk_context* ctx, const(nk_command)* cmd)
 }
 
 version(NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
-    void nk_draw_list_add_clip(struct nk_draw_list *list, struct nk_rect rect)
+    nk_draw_command* nk_draw_list_push_command(nk_draw_list* list, nk_rect clip, nk_handle texture)
     {
-        NK_ASSERT(list);
+        enum nk_size cmd_align = nk_draw_command.alignof;
+        enum nk_size cmd_size = nk_draw_command.sizeof;
+        nk_draw_command* cmd;
+
+        assert(list);
+        cmd = cast(nk_draw_command*)nk_buffer_alloc(list.buffer, NK_BUFFER_BACK, cmd_size, cmd_align);
+
+        if (!cmd) return null;
+        if (!list.cmd_count) {
+            nk_byte* memory = cast(nk_byte*)nk_buffer_memory(list.buffer);
+            nk_size total = nk_buffer_total(list.buffer);
+            memory = nk_ptr_add!nk_byte(memory, total);
+            list.cmd_offset = cast(nk_size)(memory - cast(nk_byte*)cmd);
+        }
+
+        cmd.elem_count = 0;
+        cmd.clip_rect = clip;
+        cmd.texture = texture;
+        version (NK_INCLUDE_COMMAND_USERDATA) {
+            cmd.userdata = list.userdata;
+        }
+
+        list.cmd_count++;
+        list.clip_rect = clip;
+        return cmd;
+    }
+
+    nk_draw_command* nk_draw_list_command_last(nk_draw_list* list)
+    {
+        void* memory;
+        nk_size size;
+        nk_draw_command* cmd;
+        assert(list.cmd_count);
+
+        memory = nk_buffer_memory(list.buffer);
+        size = nk_buffer_total(list.buffer);
+        cmd = nk_ptr_add!nk_draw_command(memory, size - list.cmd_offset);
+        return (cmd - (list.cmd_count-1));
+    }
+
+    void nk_draw_list_add_clip(nk_draw_list* list, nk_rect rect)
+    {
+        assert(list);
         if (!list) return;
         if (!list.cmd_count) {
             nk_draw_list_push_command(list, rect, list.config.tex_null.texture);
         } else {
-            struct nk_draw_command *prev = nk_draw_list_command_last(list);
+            nk_draw_command* prev = nk_draw_list_command_last(list);
             if (prev.elem_count == 0)
                 prev.clip_rect = rect;
             nk_draw_list_push_command(list, rect, prev.texture);
@@ -705,15 +747,15 @@ version(NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
             case NK_COMMAND_TEXT: {
                 const(nk_command_text)* t = cast(const(nk_command_text)*) cmd;
                 nk_draw_list_add_text(&ctx.draw_list, t.font, nk_rect(t.x, t.y, t.w, t.h),
-                    t.string, t.length, t.height, t.foreground);
+                    t.string.ptr, t.length, t.height, t.foreground);
             } break;
             case NK_COMMAND_IMAGE: {
                 const(nk_command_image)* i = cast(const(nk_command_image)*) cmd;
-                nk_draw_list_add_image(&ctx.draw_list, i.img, nk_rect(i.x, i.y, i.w, i.h), i.col);
+                nk_draw_list_add_image(&ctx.draw_list, cast(nk_image)i.img, nk_rect(i.x, i.y, i.w, i.h), i.col);
             } break;
             case NK_COMMAND_CUSTOM: {
                 const(nk_command_custom)* c = cast(const(nk_command_custom)*) cmd;
-                c.callback(&ctx.draw_list, c.x, c.y, c.w, c.h, c.callback_data);
+                c.callback(&ctx.draw_list, c.x, c.y, c.w, c.h, cast(nk_handle)c.callback_data);
             } break;
             default: break;
             }
@@ -734,7 +776,7 @@ version(NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
         return nk__draw_list_end(&ctx.draw_list, buffer);
     }
 
-    const(nk_draw_command)* nk__draw_next(const(nk_draw_command)*, const(nk_buffer)*, const(nk_context)*)
+    const(nk_draw_command)* nk__draw_next(const(nk_draw_command)* cmd, const(nk_buffer)* buffer, const(nk_context)* ctx)
     {
         return nk__draw_list_next(cmd, buffer, &ctx.draw_list);
     }
@@ -759,13 +801,13 @@ nk_window* nk_find_window(nk_context *ctx, nk_hash hash, const(char)* name)
     while (iter) {
         assert(iter != iter.next);
         if (iter.name == hash) {
-            int max_len = nk_strlen(iter.name_string);
-            if (!nk_stricmpn(iter.name_string, name, max_len))
+            int max_len = nk_strlen(iter.name_string.ptr);
+            if (!nk_stricmpn(iter.name_string.ptr, name, max_len))
                 return iter;
         }
         iter = iter.next;
     }
-    return 0;
+    return null;
 }
 
 nk_page_element* nk_pool_alloc(nk_pool *pool)
@@ -775,13 +817,13 @@ nk_page_element* nk_pool_alloc(nk_pool *pool)
         nk_page *page;
         if (pool.type == NK_BUFFER_FIXED) {
             assert(pool.pages);
-            if (!pool.pages) return 0;
+            if (!pool.pages) return null;
             assert(pool.pages.size < pool.capacity);
-            return 0;
+            return null;
         } else {
             nk_size size = nk_page.sizeof;
             size += (pool.capacity - 1) * nk_page_element.sizeof;
-            page = cast(nk_page*)pool.alloc.alloc(pool.alloc.userdata,0, size);
+            page = cast(nk_page*)pool.alloc.alloc(pool.alloc.userdata, null, size);
             page.next = pool.pages;
             pool.pages = page;
             page.size = 0;
@@ -800,18 +842,18 @@ nk_page_element* nk_create_page_element(nk_context *ctx)
         /* allocate page element from memory pool */
         elem = nk_pool_alloc(&ctx.pool);
         assert(elem);
-        if (!elem) return 0;
+        if (!elem) return null;
     } else {
         /* allocate new page element from back of fixed size memory buffer */
         enum nk_size size = nk_page_element.sizeof;
         enum nk_size align_ = nk_page_element.alignof;
         elem = cast(nk_page_element*)nk_buffer_alloc(&ctx.memory, NK_BUFFER_BACK, size, align_);
         assert(elem);
-        if (!elem) return 0;
+        if (!elem) return null;
     }
     nk_zero_struct(*elem);
-    elem.next = 0;
-    elem.prev = 0;
+    elem.next = null;
+    elem.prev = null;
     return elem;
 }
 
@@ -819,7 +861,7 @@ void* nk_create_window(nk_context *ctx)
 {
     nk_page_element *elem;
     elem = nk_create_page_element(ctx);
-    if (!elem) return 0;
+    if (!elem) return null;
     elem.data.win.seq = ctx.seq;
     return &elem.data.win;
 }
@@ -840,8 +882,8 @@ void nk_insert_window(nk_context *ctx, nk_window *win, nk_window_insert_location
     }
 
     if (!ctx.begin) {
-        win.next = 0;
-        win.prev = 0;
+        win.next = null;
+        win.prev = null;
         ctx.begin = win;
         ctx.end = win;
         ctx.count = 1;
@@ -853,7 +895,7 @@ void nk_insert_window(nk_context *ctx, nk_window *win, nk_window_insert_location
         end.flags |= NK_WINDOW_ROM;
         end.next = win;
         win.prev = ctx.end;
-        win.next = 0;
+        win.next = null;
         ctx.end = win;
         ctx.active = ctx.end;
         ctx.end.flags &= ~cast(nk_flags)NK_WINDOW_ROM;
@@ -861,11 +903,310 @@ void nk_insert_window(nk_context *ctx, nk_window *win, nk_window_insert_location
         /*ctx.end.flags |= NK_WINDOW_ROM;*/
         ctx.begin.prev = win;
         win.next = ctx.begin;
-        win.prev = 0;
+        win.prev = null;
         ctx.begin = win;
         ctx.begin.flags &= ~cast(nk_flags)NK_WINDOW_ROM;
     }
     ctx.count++;
+}
+
+void* nk_create_panel(nk_context* ctx)
+{
+    nk_page_element* elem;
+    elem = nk_create_page_element(ctx);
+    if (!elem) return null;
+    nk_zero_struct(*elem);
+    return &elem.data.pan;
+}
+
+nk_vec2 nk_panel_get_padding(const(nk_style)* style, nk_panel_type type)
+{
+    switch (type) {
+    default:
+    case NK_PANEL_WINDOW: return style.window.padding;
+    case NK_PANEL_GROUP: return style.window.group_padding;
+    case NK_PANEL_POPUP: return style.window.popup_padding;
+    case NK_PANEL_CONTEXTUAL: return style.window.contextual_padding;
+    case NK_PANEL_COMBO: return style.window.combo_padding;
+    case NK_PANEL_MENU: return style.window.menu_padding;
+    case NK_PANEL_TOOLTIP: return style.window.menu_padding;}
+}
+
+nk_bool nk_panel_has_header(nk_flags flags, const(char)* title)
+{
+    nk_bool active = 0;
+    active = cast(bool)(flags & (NK_WINDOW_CLOSABLE|NK_WINDOW_MINIMIZABLE));
+    active = active || (flags & NK_WINDOW_TITLE);
+    active = active && !(flags & NK_WINDOW_HIDDEN) && title;
+    return active;
+}
+
+float nk_panel_get_border(const(nk_style)* style, nk_flags flags, nk_panel_type type)
+{
+    if (flags & NK_WINDOW_BORDER) {
+        switch (type) {
+            default:
+            case NK_PANEL_WINDOW: return style.window.border;
+            case NK_PANEL_GROUP: return style.window.group_border;
+            case NK_PANEL_POPUP: return style.window.popup_border;
+            case NK_PANEL_CONTEXTUAL: return style.window.contextual_border;
+            case NK_PANEL_COMBO: return style.window.combo_border;
+            case NK_PANEL_MENU: return style.window.menu_border;
+            case NK_PANEL_TOOLTIP: return style.window.menu_border;
+        }
+    } else return 0;
+}
+
+nk_rect nk_shrink_rect(nk_rect r, float amount)
+{
+    nk_rect res = void;
+    r.w = nk_max(r.w, 2 * amount);
+    r.h = nk_max(r.h, 2 * amount);
+    res.x = r.x + amount;
+    res.y = r.y + amount;
+    res.w = r.w - 2 * amount;
+    res.h = r.h - 2 * amount;
+    return res;
+}
+
+nk_bool nk_panel_begin(nk_context* ctx, const(char)* title, nk_panel_type panel_type)
+{
+    nk_input* in_;
+    nk_window* win;
+    nk_panel* layout;
+    nk_command_buffer* out_;
+    const(nk_style)* style;
+    const(nk_user_font)* font;
+
+    nk_vec2 scrollbar_size;
+    nk_vec2 panel_padding;
+
+    assert(ctx);
+    assert(ctx.current);
+    assert(ctx.current.layout);
+    if (!ctx || !ctx.current || !ctx.current.layout) return 0;
+    nk_zero(ctx.current.layout, typeof(*ctx.current.layout).sizeof);
+    if ((ctx.current.flags & NK_WINDOW_HIDDEN) || (ctx.current.flags & NK_WINDOW_CLOSED)) {
+        nk_zero(ctx.current.layout, nk_panel.sizeof);
+        ctx.current.layout.type = panel_type;
+        return 0;
+    }
+    /* pull state into local stack */
+    style = &ctx.style;
+    font = style.font;
+    win = ctx.current;
+    layout = win.layout;
+    out_ = &win.buffer;
+    in_ = (win.flags & NK_WINDOW_NO_INPUT) ? null: &ctx.input;
+    version (NK_INCLUDE_COMMAND_USERDATA) {
+        win.buffer.userdata = ctx.userdata;
+    }
+    /* pull style configuration into local stack */
+    scrollbar_size = style.window.scrollbar_size;
+    panel_padding = nk_panel_get_padding(style, panel_type);
+
+    /* window movement */
+    if ((win.flags & NK_WINDOW_MOVABLE) && !(win.flags & NK_WINDOW_ROM)) {
+        nk_bool left_mouse_down;
+        uint left_mouse_clicked;
+        int left_mouse_click_in_cursor;
+
+        /* calculate draggable window space */
+        nk_rect header;
+        header.x = win.bounds.x;
+        header.y = win.bounds.y;
+        header.w = win.bounds.w;
+        if (nk_panel_has_header(win.flags, title)) {
+            header.h = font.height + 2.0f * style.window.header.padding.y;
+            header.h += 2.0f * style.window.header.label_padding.y;
+        } else header.h = panel_padding.y;
+
+        /* window movement by dragging */
+        left_mouse_down = in_.mouse.buttons[NK_BUTTON_LEFT].down;
+        left_mouse_clicked = in_.mouse.buttons[NK_BUTTON_LEFT].clicked;
+        left_mouse_click_in_cursor = nk_input_has_mouse_click_down_in_rect(in_,
+            NK_BUTTON_LEFT, header, nk_true);
+        if (left_mouse_down && left_mouse_click_in_cursor && !left_mouse_clicked) {
+            win.bounds.x = win.bounds.x + in_.mouse.delta.x;
+            win.bounds.y = win.bounds.y + in_.mouse.delta.y;
+            in_.mouse.buttons[NK_BUTTON_LEFT].clicked_pos.x += in_.mouse.delta.x;
+            in_.mouse.buttons[NK_BUTTON_LEFT].clicked_pos.y += in_.mouse.delta.y;
+            ctx.style.cursor_active = ctx.style.cursors[NK_CURSOR_MOVE];
+        }
+    }
+
+    /* setup panel */
+    layout.type = panel_type;
+    layout.flags = win.flags;
+    layout.bounds = win.bounds;
+    layout.bounds.x += panel_padding.x;
+    layout.bounds.w -= 2*panel_padding.x;
+    if (win.flags & NK_WINDOW_BORDER) {
+        layout.border = nk_panel_get_border(style, win.flags, panel_type);
+        layout.bounds = nk_shrink_rect(layout.bounds, layout.border);
+    } else layout.border = 0;
+    layout.at_y = layout.bounds.y;
+    layout.at_x = layout.bounds.x;
+    layout.max_x = 0;
+    layout.header_height = 0;
+    layout.footer_height = 0;
+    nk_layout_reset_min_row_height(ctx);
+    layout.row.index = 0;
+    layout.row.columns = 0;
+    layout.row.ratio = null;
+    layout.row.item_width = 0;
+    layout.row.tree_depth = 0;
+    layout.row.height = panel_padding.y;
+    layout.has_scrolling = nk_true;
+    if (!(win.flags & NK_WINDOW_NO_SCROLLBAR))
+        layout.bounds.w -= scrollbar_size.x;
+    if (!nk_panel_is_nonblock(panel_type)) {
+        layout.footer_height = 0;
+        if (!(win.flags & NK_WINDOW_NO_SCROLLBAR) || win.flags & NK_WINDOW_SCALABLE)
+            layout.footer_height = scrollbar_size.y;
+        layout.bounds.h -= layout.footer_height;
+    }
+
+    /* panel header */
+    if (nk_panel_has_header(win.flags, title))
+    {
+        nk_text text;
+        nk_rect header;
+        const(nk_style_item)* background = null;
+
+        /* calculate header bounds */
+        header.x = win.bounds.x;
+        header.y = win.bounds.y;
+        header.w = win.bounds.w;
+        header.h = font.height + 2.0f * style.window.header.padding.y;
+        header.h += (2.0f * style.window.header.label_padding.y);
+
+        /* shrink panel by header */
+        layout.header_height = header.h;
+        layout.bounds.y += header.h;
+        layout.bounds.h -= header.h;
+        layout.at_y += header.h;
+
+        /* select correct header background and text color */
+        if (ctx.active == win) {
+            background = &style.window.header.active;
+            text.text = style.window.header.label_active;
+        } else if (nk_input_is_mouse_hovering_rect(&ctx.input, header)) {
+            background = &style.window.header.hover;
+            text.text = style.window.header.label_hover;
+        } else {
+            background = &style.window.header.normal;
+            text.text = style.window.header.label_normal;
+        }
+
+        /* draw header background */
+        header.h += 1.0f;
+
+        switch(background.type) {
+            case NK_STYLE_ITEM_IMAGE:
+                text.background = nk_rgba(0,0,0,0);
+                nk_draw_image(&win.buffer, header, &background.data.image, nk_white);
+                break;
+            case NK_STYLE_ITEM_NINE_SLICE:
+                text.background = nk_rgba(0, 0, 0, 0);
+                nk_draw_nine_slice(&win.buffer, header, &background.data.slice, nk_white);
+                break;
+            case NK_STYLE_ITEM_COLOR:
+                text.background = background.data.color;
+                nk_fill_rect(out_, header, 0, background.data.color);
+                break;
+        default: break;}
+
+        /* window close button */
+        {nk_rect button;
+        button.y = header.y + style.window.header.padding.y;
+        button.h = header.h - 2 * style.window.header.padding.y;
+        button.w = button.h;
+        if (win.flags & NK_WINDOW_CLOSABLE) {
+            nk_flags ws = 0;
+            if (style.window.header.align_ == NK_HEADER_RIGHT) {
+                button.x = (header.w + header.x) - (button.w + style.window.header.padding.x);
+                header.w -= button.w + style.window.header.spacing.x + style.window.header.padding.x;
+            } else {
+                button.x = header.x + style.window.header.padding.x;
+                header.x += button.w + style.window.header.spacing.x + style.window.header.padding.x;
+            }
+
+            if (nk_do_button_symbol(&ws, &win.buffer, button,
+                style.window.header.close_symbol, NK_BUTTON_DEFAULT,
+                &style.window.header.close_button, in_, style.font) && !(win.flags & NK_WINDOW_ROM))
+            {
+                layout.flags |= NK_WINDOW_HIDDEN;
+                layout.flags &= cast(nk_flags)~NK_WINDOW_MINIMIZED;
+            }
+        }
+
+        /* window minimize button */
+        if (win.flags & NK_WINDOW_MINIMIZABLE) {
+            nk_flags ws = 0;
+            if (style.window.header.align_ == NK_HEADER_RIGHT) {
+                button.x = (header.w + header.x) - button.w;
+                if (!(win.flags & NK_WINDOW_CLOSABLE)) {
+                    button.x -= style.window.header.padding.x;
+                    header.w -= style.window.header.padding.x;
+                }
+                header.w -= button.w + style.window.header.spacing.x;
+            } else {
+                button.x = header.x;
+                header.x += button.w + style.window.header.spacing.x + style.window.header.padding.x;
+            }
+            if (nk_do_button_symbol(&ws, &win.buffer, button, (layout.flags & NK_WINDOW_MINIMIZED)?
+                style.window.header.maximize_symbol: style.window.header.minimize_symbol,
+                NK_BUTTON_DEFAULT, &style.window.header.minimize_button, in_, style.font) && !(win.flags & NK_WINDOW_ROM))
+                layout.flags = (layout.flags & NK_WINDOW_MINIMIZED) ?
+                    layout.flags & cast(nk_flags)~NK_WINDOW_MINIMIZED:
+                    layout.flags | NK_WINDOW_MINIMIZED;
+        }}
+
+        {/* window header title */
+        int text_len = nk_strlen(title);
+        nk_rect label = {0,0,0,0};
+        float t = font.width(font.userdata, font.height, title, text_len);
+        text.padding = nk_vec2(0,0);
+
+        label.x = header.x + style.window.header.padding.x;
+        label.x += style.window.header.label_padding.x;
+        label.y = header.y + style.window.header.label_padding.y;
+        label.h = font.height + 2 * style.window.header.label_padding.y;
+        label.w = t + 2 * style.window.header.spacing.x;
+        label.w = NK_CLAMP(0, label.w, header.x + header.w - label.x);
+        nk_widget_text(out_, label, cast(const(char)*)title, text_len, &text, NK_TEXT_LEFT, font);}
+    }
+
+    /* draw window background */
+    if (!(layout.flags & NK_WINDOW_MINIMIZED) && !(layout.flags & NK_WINDOW_DYNAMIC)) {
+        nk_rect body;
+        body.x = win.bounds.x;
+        body.w = win.bounds.w;
+        body.y = (win.bounds.y + layout.header_height);
+        body.h = (win.bounds.h - layout.header_height);
+
+        switch(style.window.fixed_background.type) {
+            case NK_STYLE_ITEM_IMAGE:
+                nk_draw_image(out_, body, &style.window.fixed_background.data.image, nk_white);
+                break;
+            case NK_STYLE_ITEM_NINE_SLICE:
+                nk_draw_nine_slice(out_, body, &style.window.fixed_background.data.slice, nk_white);
+                break;
+            case NK_STYLE_ITEM_COLOR:
+                nk_fill_rect(out_, body, 0, style.window.fixed_background.data.color);
+                break;
+        default: break;}
+    }
+
+    /* set clipping rectangle */
+    {nk_rect clip;
+    layout.clip = layout.bounds;
+    nk_unify(&clip, &win.buffer.clip, layout.clip.x, layout.clip.y,
+        layout.clip.x + layout.clip.w, layout.clip.y + layout.clip.h);
+    nk_push_scissor(out_, clip);
+    layout.clip = clip;}
+    return !(layout.flags & NK_WINDOW_HIDDEN) && !(layout.flags & NK_WINDOW_MINIMIZED);
 }
 
 bool nk_begin_titled(nk_context* ctx, const(char)* name, const(char)* title, nk_rect bounds, nk_flags flags)
@@ -955,13 +1296,13 @@ bool nk_begin_titled(nk_context* ctx, const(char)* name, const(char)* title, nk_
             while (iter) {
                 nk_rect iter_bounds = (!(iter.flags & NK_WINDOW_MINIMIZED))?
                     iter.bounds: nk_rect(iter.bounds.x, iter.bounds.y, iter.bounds.w, h);
-                if (NK_INTERSECT(win_bounds.x, win_bounds.y, win_bounds.w, win_bounds.h,
+                if (nk_intersect(win_bounds.x, win_bounds.y, win_bounds.w, win_bounds.h,
                     iter_bounds.x, iter_bounds.y, iter_bounds.w, iter_bounds.h) &&
                     (!(iter.flags & NK_WINDOW_HIDDEN)))
                     break;
 
                 if (iter.popup.win && iter.popup.active && !(iter.flags & NK_WINDOW_HIDDEN) &&
-                    NK_INTERSECT(win.bounds.x, win_bounds.y, win_bounds.w, win_bounds.h,
+                    nk_intersect(win.bounds.x, win_bounds.y, win_bounds.w, win_bounds.h,
                     iter.popup.win.bounds.x, iter.popup.win.bounds.y,
                     iter.popup.win.bounds.w, iter.popup.win.bounds.h))
                     break;
@@ -976,12 +1317,12 @@ bool nk_begin_titled(nk_context* ctx, const(char)* name, const(char)* title, nk_
                 /* try to find a panel with higher priority in the same position */
                 nk_rect iter_bounds = (!(iter.flags & NK_WINDOW_MINIMIZED))?
                 iter.bounds: nk_rect(iter.bounds.x, iter.bounds.y, iter.bounds.w, h);
-                if (NK_INBOX(ctx.input.mouse.pos.x, ctx.input.mouse.pos.y,
+                if (nk_inbox(ctx.input.mouse.pos.x, ctx.input.mouse.pos.y,
                     iter_bounds.x, iter_bounds.y, iter_bounds.w, iter_bounds.h) &&
                     !(iter.flags & NK_WINDOW_HIDDEN))
                     break;
                 if (iter.popup.win && iter.popup.active && !(iter.flags & NK_WINDOW_HIDDEN) &&
-                    NK_INTERSECT(win_bounds.x, win_bounds.y, win_bounds.w, win_bounds.h,
+                    nk_intersect(win_bounds.x, win_bounds.y, win_bounds.w, win_bounds.h,
                     iter.popup.win.bounds.x, iter.popup.win.bounds.y,
                     iter.popup.win.bounds.w, iter.popup.win.bounds.h))
                     break;
@@ -2313,9 +2654,27 @@ void nk_buffer_free(nk_buffer* b)
     b.pool.free(b.pool.userdata, b.memory.ptr);
 }
 
-void* nk_buffer_memory(nk_buffer*);
-const(void)* nk_buffer_memory_const(const(nk_buffer)*);
-nk_size nk_buffer_total(nk_buffer*);
+void* nk_buffer_memory(nk_buffer* buffer)
+{
+    assert(buffer);
+    if (!buffer) return null;
+    return buffer.memory.ptr;
+}
+
+const(void)* nk_buffer_memory_const(const(nk_buffer)* buffer)
+{
+    assert(buffer);
+    if (!buffer) return null;
+    return buffer.memory.ptr;
+}
+
+nk_size nk_buffer_total(nk_buffer* buffer)
+{
+    assert(buffer);
+    if (!buffer) return null;
+    return buffer.memory.size;
+}
+
 version(NK_INCLUDE_DEFAULT_ALLOCATOR) {
     void nk_str_init_default(nk_str*);
 }
@@ -2674,8 +3033,63 @@ version(NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
         return end;
     }
 
-    void nk_draw_list_path_clear(nk_draw_list*);
-    void nk_draw_list_path_line_to(nk_draw_list*, nk_vec2 pos);
+    void nk_draw_list_path_clear(nk_draw_list* list)
+    {
+        assert(list);
+        if (!list) return;
+        nk_buffer_reset(list.buffer, NK_BUFFER_FRONT);
+        list.path_count = 0;
+        list.path_offset = 0;
+    }
+
+    void nk_draw_list_push_image(nk_draw_list* list, nk_handle texture)
+    {
+        assert(list);
+        if (!list) return;
+        version (NK_INCLUDE_COMMAND_USERDATA) {
+            if (!list.cmd_count) {
+                nk_draw_list_push_command(list, nk_null_rect, texture);
+            } else {
+                nk_draw_command* prev = nk_draw_list_command_last(list);
+                if (prev.elem_count == 0) {
+                    prev.texture = texture;
+                    prev.userdata = list.userdata;
+                } else if (prev.texture.id != texture.id || prev.userdata.id != list.userdata.id) {
+                    nk_draw_list_push_command(list, prev.clip_rect, texture);
+                }
+            }
+        } else {
+            if (!list.cmd_count) {
+                nk_draw_list_push_command(list, nk_null_rect, texture);
+            } else {
+                nk_draw_command* prev = nk_draw_list_command_last(list);
+                if (prev.elem_count == 0) {
+                    prev.texture = texture;
+                } else if (prev.texture.id != texture.id) {
+                    nk_draw_list_push_command(list, prev.clip_rect, texture);
+                }
+            }
+        }
+    }
+
+    void nk_draw_list_path_line_to(nk_draw_list* list, nk_vec2 pos)
+    {
+        nk_vec2* points = null;
+        nk_draw_command* cmd = null;
+        assert(list);
+        if (!list) return;
+        if (!list.cmd_count)
+            nk_draw_list_add_clip(list, nk_null_rect);
+
+        cmd = nk_draw_list_command_last(list);
+        if (cmd && cmd.texture.ptr != list.config.tex_null.texture.ptr)
+            nk_draw_list_push_image(list, list.config.tex_null.texture);
+
+        points = nk_draw_list_alloc_path(list, 1);
+        if (!points) return;
+        points[0] = pos;
+    }
+
     void nk_draw_list_path_arc_to_fast(nk_draw_list*, nk_vec2 center, float radius, int a_min, int a_max);
     void nk_draw_list_path_arc_to(nk_draw_list*, nk_vec2 center, float radius, float a_min, float a_max, uint segments);
     void nk_draw_list_path_rect_to(nk_draw_list*, nk_vec2 a, nk_vec2 b, float rounding);
