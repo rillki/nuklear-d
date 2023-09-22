@@ -134,8 +134,8 @@ void nk_remove_table(nk_window *win, nk_table *tbl)
 
 void nk_free_table(nk_context *ctx, nk_table *tbl)
 {
-    nk_page_data *pd = nk_container_of(tbl, nk_page_data(), "tbl");
-    nk_page_element *pe = nk_container_of(pd, nk_page_element(), "data");
+    nk_page_data *pd = nk_container_of!(nk_page_data, "tbl")(tbl);
+    nk_page_element *pe = nk_container_of!(nk_page_element, "data")(pd);
     nk_free_page_element(ctx, pe);
 }
 
@@ -162,8 +162,8 @@ void nk_free_window(nk_context *ctx, nk_window *win)
 
     /* link windows into freelist */
     {
-        nk_page_data *pd = nk_container_of(win, nk_page_data(), "win");
-        nk_page_element *pe = nk_container_of(pd, nk_page_element(), "data");
+        nk_page_data *pd = nk_container_of!(nk_page_data, "win")(win);
+        nk_page_element *pe = nk_container_of!(nk_page_element, "data")(pd);
         nk_free_page_element(ctx, pe);
     }
 }
@@ -507,7 +507,7 @@ void nk_build(nk_context *ctx)
             it.seq != ctx.seq)
             goto cont;
 
-        cmd = nk_ptr_add(nk_command(), buffer, it.buffer.last);
+        cmd = nk_ptr_add!nk_command(buffer, it.buffer.last);
         while (next && ((next.buffer.last == next.buffer.begin) ||
             (next.flags & NK_WINDOW_HIDDEN) || next.seq != ctx.seq))
             next = next.next; /* skip empty command buffers */
@@ -525,7 +525,7 @@ void nk_build(nk_context *ctx)
 
         buf = &it.popup.buf;
         cmd.next = buf.begin;
-        cmd = nk_ptr_add(nk_command(), buffer, buf.last);
+        cmd = nk_ptr_add!nk_command(buffer, buf.last);
         buf.active = nk_false;
         skip: it = next;
     }
@@ -555,18 +555,472 @@ const(nk_command)* nk__begin(nk_context* ctx)
         (iter.flags & NK_WINDOW_HIDDEN) || iter.seq != ctx.seq))
         iter = iter.next;
     if (!iter) return null;
-    return nk_ptr_add_const(nk_command(), buffer, iter.buffer.begin);
+    return nk_ptr_add_const!nk_command(buffer, iter.buffer.begin);
 }
 
-const(nk_command)* nk__next(nk_context*, const(nk_command)*);
-version(NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
-    nk_flags nk_convert(nk_context*, nk_buffer* cmds, nk_buffer* vertices, nk_buffer* elements, const(nk_convert_config)*);
-    const(nk_draw_command)* nk__draw_begin(const(nk_context)*, const(nk_buffer)*);
-    const(nk_draw_command)* nk__draw_end(const(nk_context)*, const(nk_buffer)*);
-    const(nk_draw_command)* nk__draw_next(const(nk_draw_command)*, const(nk_buffer)*, const(nk_context)*);
+const(nk_command)* nk__next(nk_context* ctx, const(nk_command)* cmd)
+{
+    nk_byte *buffer;
+    const(nk_command)* next;
+    assert(ctx);
+    if (!ctx || !cmd || !ctx.count) return null;
+    if (cmd.next >= ctx.memory.allocated) return null;
+    buffer = cast(nk_byte*)ctx.memory.memory.ptr;
+    next = nk_ptr_add_const!nk_command(buffer, cmd.next);
+    return next;
 }
-bool nk_begin(nk_context* ctx, const(char)* title, nk_rect bounds, nk_flags flags);
-bool nk_begin_titled(nk_context* ctx, const(char)* name, const(char)* title, nk_rect bounds, nk_flags flags);
+
+version(NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
+    void nk_draw_list_add_clip(struct nk_draw_list *list, struct nk_rect rect)
+    {
+        NK_ASSERT(list);
+        if (!list) return;
+        if (!list.cmd_count) {
+            nk_draw_list_push_command(list, rect, list.config.tex_null.texture);
+        } else {
+            struct nk_draw_command *prev = nk_draw_list_command_last(list);
+            if (prev.elem_count == 0)
+                prev.clip_rect = rect;
+            nk_draw_list_push_command(list, rect, prev.texture);
+        }
+    }
+
+    nk_flags nk_convert(nk_context* ctx, nk_buffer* cmds, nk_buffer* vertices, nk_buffer* elements, const(nk_convert_config)* config)
+    {
+        nk_flags res = NK_CONVERT_SUCCESS;
+        const(nk_command)* cmd;
+        assert(ctx);
+        assert(cmds);
+        assert(vertices);
+        assert(elements);
+        assert(config);
+        assert(config.vertex_layout);
+        assert(config.vertex_size);
+        if (!ctx || !cmds || !vertices || !elements || !config || !config.vertex_layout)
+            return NK_CONVERT_INVALID_PARAM;
+
+        nk_draw_list_setup(&ctx.draw_list, config, cmds, vertices, elements, config.line_AA, config.shape_AA);
+        
+        for (cmd = nk__begin(ctx); cmd != null; cmd = nk__next(ctx, cmd))
+        {
+            version (NK_INCLUDE_COMMAND_USERDATA) ctx.draw_list.userdata = cmd.userdata;
+
+            switch (cmd.type) {
+            case NK_COMMAND_NOP: break;
+            case NK_COMMAND_SCISSOR: {
+                const(nk_command_scissor)* s = cast(const(nk_command_scissor)*) cmd;
+                nk_draw_list_add_clip(&ctx.draw_list, nk_rect(s.x, s.y, s.w, s.h));
+            } break;
+            case NK_COMMAND_LINE: {
+                const(nk_command_line)* l = cast(const(nk_command_line)*) cmd;
+                nk_draw_list_stroke_line(&ctx.draw_list, nk_vec2(l.begin.x, l.begin.y),
+                    nk_vec2(l.end.x, l.end.y), l.color, l.line_thickness);
+            } break;
+            case NK_COMMAND_CURVE: {
+                const(nk_command_curve)* q = cast(const(nk_command_curve)*) cmd;
+                nk_draw_list_stroke_curve(&ctx.draw_list, nk_vec2(q.begin.x, q.begin.y),
+                    nk_vec2(q.ctrl[0].x, q.ctrl[0].y), nk_vec2(q.ctrl[1].x,
+                    q.ctrl[1].y), nk_vec2(q.end.x, q.end.y), q.color,
+                    config.curve_segment_count, q.line_thickness);
+            } break;
+            case NK_COMMAND_RECT: {
+                const(nk_command_rect)* r = cast(const(nk_command_rect)*) cmd;
+                nk_draw_list_stroke_rect(&ctx.draw_list, nk_rect(r.x, r.y, r.w, r.h),
+                    r.color, cast(float)r.rounding, r.line_thickness);
+            } break;
+            case NK_COMMAND_RECT_FILLED: {
+                const(nk_command_rect_filled)* r = cast(const(nk_command_rect_filled)*) cmd;
+                nk_draw_list_fill_rect(&ctx.draw_list, nk_rect(r.x, r.y, r.w, r.h),
+                    r.color, cast(float)r.rounding);
+            } break;
+            case NK_COMMAND_RECT_MULTI_COLOR: {
+                const(nk_command_rect_multi_color)* r = cast(const(nk_command_rect_multi_color)*) cmd;
+                nk_draw_list_fill_rect_multi_color(&ctx.draw_list, nk_rect(r.x, r.y, r.w, r.h),
+                    r.left, r.top, r.right, r.bottom);
+            } break;
+            case NK_COMMAND_CIRCLE: {
+                const(nk_command_circle)* c = cast(const(nk_command_circle)*) cmd;
+                nk_draw_list_stroke_circle(&ctx.draw_list, nk_vec2(cast(float)c.x + cast(float)c.w/2,
+                    cast(float)c.y + cast(float)c.h/2), cast(float)c.w/2, c.color,
+                    config.circle_segment_count, c.line_thickness);
+            } break;
+            case NK_COMMAND_CIRCLE_FILLED: {
+                const(nk_command_circle_filled)* c = cast(const(nk_command_circle_filled )*) cmd;
+                nk_draw_list_fill_circle(&ctx.draw_list, nk_vec2(cast(float)c.x + cast(float)c.w/2,
+                    cast(float)c.y + cast(float)c.h/2), cast(float)c.w/2, c.color,
+                    config.circle_segment_count);
+            } break;
+            case NK_COMMAND_ARC: {
+                const(nk_command_arc)* c = cast(const(nk_command_arc)*) cmd;
+                nk_draw_list_path_line_to(&ctx.draw_list, nk_vec2(c.cx, c.cy));
+                nk_draw_list_path_arc_to(&ctx.draw_list, nk_vec2(c.cx, c.cy), c.r,
+                    c.a[0], c.a[1], config.arc_segment_count);
+                nk_draw_list_path_stroke(&ctx.draw_list, c.color, NK_STROKE_CLOSED, c.line_thickness);
+            } break;
+            case NK_COMMAND_ARC_FILLED: {
+                const(nk_command_arc_filled)* c = cast(const(nk_command_arc_filled)*) cmd;
+                nk_draw_list_path_line_to(&ctx.draw_list, nk_vec2(c.cx, c.cy));
+                nk_draw_list_path_arc_to(&ctx.draw_list, nk_vec2(c.cx, c.cy), c.r,
+                    c.a[0], c.a[1], config.arc_segment_count);
+                nk_draw_list_path_fill(&ctx.draw_list, c.color);
+            } break;
+            case NK_COMMAND_TRIANGLE: {
+                const(nk_command_triangle)* t = cast(const(nk_command_triangle)*) cmd;
+                nk_draw_list_stroke_triangle(&ctx.draw_list, nk_vec2(t.a.x, t.a.y),
+                    nk_vec2(t.b.x, t.b.y), nk_vec2(t.c.x, t.c.y), t.color,
+                    t.line_thickness);
+            } break;
+            case NK_COMMAND_TRIANGLE_FILLED: {
+                const(nk_command_triangle_filled)* t = cast(const(nk_command_triangle_filled)*) cmd;
+                nk_draw_list_fill_triangle(&ctx.draw_list, nk_vec2(t.a.x, t.a.y),
+                    nk_vec2(t.b.x, t.b.y), nk_vec2(t.c.x, t.c.y), t.color);
+            } break;
+            case NK_COMMAND_POLYGON: {
+                int i;
+                const(nk_command_polygon)* p = cast(const(nk_command_polygon)*) cmd;
+                for (i = 0; i < p.point_count; ++i) {
+                    nk_vec2 pnt = nk_vec2(cast(float)p.points[i].x, cast(float)p.points[i].y);
+                    nk_draw_list_path_line_to(&ctx.draw_list, pnt);
+                }
+                nk_draw_list_path_stroke(&ctx.draw_list, p.color, NK_STROKE_CLOSED, p.line_thickness);
+            } break;
+            case NK_COMMAND_POLYGON_FILLED: {
+                int i;
+                const(nk_command_polygon_filled)* p = cast(const(nk_command_polygon_filled)*) cmd;
+                for (i = 0; i < p.point_count; ++i) {
+                    nk_vec2 pnt = nk_vec2(cast(float)p.points[i].x, cast(float)p.points[i].y);
+                    nk_draw_list_path_line_to(&ctx.draw_list, pnt);
+                }
+                nk_draw_list_path_fill(&ctx.draw_list, p.color);
+            } break;
+            case NK_COMMAND_POLYLINE: {
+                int i;
+                const(nk_command_polyline)* p = cast(const(nk_command_polyline)*) cmd;
+                for (i = 0; i < p.point_count; ++i) {
+                    nk_vec2 pnt = nk_vec2(cast(float)p.points[i].x, cast(float)p.points[i].y);
+                    nk_draw_list_path_line_to(&ctx.draw_list, pnt);
+                }
+                nk_draw_list_path_stroke(&ctx.draw_list, p.color, NK_STROKE_OPEN, p.line_thickness);
+            } break;
+            case NK_COMMAND_TEXT: {
+                const(nk_command_text)* t = cast(const(nk_command_text)*) cmd;
+                nk_draw_list_add_text(&ctx.draw_list, t.font, nk_rect(t.x, t.y, t.w, t.h),
+                    t.string, t.length, t.height, t.foreground);
+            } break;
+            case NK_COMMAND_IMAGE: {
+                const(nk_command_image)* i = cast(const(nk_command_image)*) cmd;
+                nk_draw_list_add_image(&ctx.draw_list, i.img, nk_rect(i.x, i.y, i.w, i.h), i.col);
+            } break;
+            case NK_COMMAND_CUSTOM: {
+                const(nk_command_custom)* c = cast(const(nk_command_custom)*) cmd;
+                c.callback(&ctx.draw_list, c.x, c.y, c.w, c.h, c.callback_data);
+            } break;
+            default: break;
+            }
+        }
+        res |= (cmds.needed > cmds.allocated + (cmds.memory.size - cmds.size)) ? NK_CONVERT_COMMAND_BUFFER_FULL: 0;
+        res |= (vertices.needed > vertices.allocated) ? NK_CONVERT_VERTEX_BUFFER_FULL: 0;
+        res |= (elements.needed > elements.allocated) ? NK_CONVERT_ELEMENT_BUFFER_FULL: 0;
+        return res;
+    }
+
+    const(nk_draw_command)* nk__draw_begin(const(nk_context)* ctx, const(nk_buffer)* buffer)
+    {
+        return nk__draw_list_begin(&ctx.draw_list, buffer);
+    }
+
+    const(nk_draw_command)* nk__draw_end(const(nk_context)* ctx, const(nk_buffer)* buffer)
+    {
+        return nk__draw_list_end(&ctx.draw_list, buffer);
+    }
+
+    const(nk_draw_command)* nk__draw_next(const(nk_draw_command)*, const(nk_buffer)*, const(nk_context)*)
+    {
+        return nk__draw_list_next(cmd, buffer, &ctx.draw_list);
+    }
+}
+
+bool nk_begin(nk_context* ctx, const(char)* title, nk_rect bounds, nk_flags flags)
+{
+    return nk_begin_titled(ctx, title, title, bounds, flags);
+}
+
+void nk_start(nk_context *ctx, nk_window *win)
+{
+    assert(ctx);
+    assert(win);
+    nk_start_buffer(ctx, &win.buffer);
+}
+
+nk_window* nk_find_window(nk_context *ctx, nk_hash hash, const(char)* name)
+{
+    nk_window* iter;
+    iter = ctx.begin;
+    while (iter) {
+        assert(iter != iter.next);
+        if (iter.name == hash) {
+            int max_len = nk_strlen(iter.name_string);
+            if (!nk_stricmpn(iter.name_string, name, max_len))
+                return iter;
+        }
+        iter = iter.next;
+    }
+    return 0;
+}
+
+nk_page_element* nk_pool_alloc(nk_pool *pool)
+{
+    if (!pool.pages || pool.pages.size >= pool.capacity) {
+        /* allocate new page */
+        nk_page *page;
+        if (pool.type == NK_BUFFER_FIXED) {
+            assert(pool.pages);
+            if (!pool.pages) return 0;
+            assert(pool.pages.size < pool.capacity);
+            return 0;
+        } else {
+            nk_size size = nk_page.sizeof;
+            size += (pool.capacity - 1) * nk_page_element.sizeof;
+            page = cast(nk_page*)pool.alloc.alloc(pool.alloc.userdata,0, size);
+            page.next = pool.pages;
+            pool.pages = page;
+            page.size = 0;
+        }
+    } return &pool.pages.win[pool.pages.size++];
+}
+
+nk_page_element* nk_create_page_element(nk_context *ctx)
+{
+    nk_page_element *elem;
+    if (ctx.freelist) {
+        /* unlink page element from free list */
+        elem = ctx.freelist;
+        ctx.freelist = elem.next;
+    } else if (ctx.use_pool) {
+        /* allocate page element from memory pool */
+        elem = nk_pool_alloc(&ctx.pool);
+        assert(elem);
+        if (!elem) return 0;
+    } else {
+        /* allocate new page element from back of fixed size memory buffer */
+        enum nk_size size = nk_page_element.sizeof;
+        enum nk_size align_ = nk_page_element.alignof;
+        elem = cast(nk_page_element*)nk_buffer_alloc(&ctx.memory, NK_BUFFER_BACK, size, align_);
+        assert(elem);
+        if (!elem) return 0;
+    }
+    nk_zero_struct(*elem);
+    elem.next = 0;
+    elem.prev = 0;
+    return elem;
+}
+
+void* nk_create_window(nk_context *ctx)
+{
+    nk_page_element *elem;
+    elem = nk_create_page_element(ctx);
+    if (!elem) return 0;
+    elem.data.win.seq = ctx.seq;
+    return &elem.data.win;
+}
+
+void nk_insert_window(nk_context *ctx, nk_window *win, nk_window_insert_location loc)
+{
+    const(nk_window)* iter;
+    assert(ctx);
+    assert(win);
+    if (!win || !ctx) return;
+
+    iter = ctx.begin;
+    while (iter) {
+        assert(iter != iter.next);
+        assert(iter != win);
+        if (iter == win) return;
+        iter = iter.next;
+    }
+
+    if (!ctx.begin) {
+        win.next = 0;
+        win.prev = 0;
+        ctx.begin = win;
+        ctx.end = win;
+        ctx.count = 1;
+        return;
+    }
+    if (loc == NK_INSERT_BACK) {
+        nk_window *end;
+        end = ctx.end;
+        end.flags |= NK_WINDOW_ROM;
+        end.next = win;
+        win.prev = ctx.end;
+        win.next = 0;
+        ctx.end = win;
+        ctx.active = ctx.end;
+        ctx.end.flags &= ~cast(nk_flags)NK_WINDOW_ROM;
+    } else {
+        /*ctx.end.flags |= NK_WINDOW_ROM;*/
+        ctx.begin.prev = win;
+        win.next = ctx.begin;
+        win.prev = 0;
+        ctx.begin = win;
+        ctx.begin.flags &= ~cast(nk_flags)NK_WINDOW_ROM;
+    }
+    ctx.count++;
+}
+
+bool nk_begin_titled(nk_context* ctx, const(char)* name, const(char)* title, nk_rect bounds, nk_flags flags)
+{
+    nk_window *win;
+    nk_style *style;
+    nk_hash name_hash;
+    int name_len;
+    int ret = 0;
+
+    assert(ctx);
+    assert(name);
+    assert(title);
+    assert(ctx.style.font && ctx.style.font.width && "if this triggers you forgot to add a font");
+    assert(!ctx.current && "if this triggers you missed a `nk_end` call");
+    if (!ctx || ctx.current || !title || !name)
+        return 0;
+
+    /* find or create window */
+    style = &ctx.style;
+    name_len = cast(int)nk_strlen(name);
+    name_hash = nk_murmur_hash(name, cast(int)name_len, NK_WINDOW_TITLE);
+    win = nk_find_window(ctx, name_hash, name);
+    if (!win) {
+        /* create new window */
+        nk_size name_length = cast(nk_size)name_len;
+        win = cast(nk_window*)nk_create_window(ctx);
+        assert(win);
+        if (!win) return 0;
+
+        if (flags & NK_WINDOW_BACKGROUND)
+            nk_insert_window(ctx, win, NK_INSERT_FRONT);
+        else nk_insert_window(ctx, win, NK_INSERT_BACK);
+        nk_command_buffer_init(&win.buffer, &ctx.memory, NK_CLIPPING_ON);
+
+        win.flags = flags;
+        win.bounds = bounds;
+        win.name = name_hash;
+        name_length = nk_min(name_length, NK_WINDOW_MAX_NAME-1);
+        nk_memcopy(win.name_string, name, name_length);
+        win.name_string[name_length] = 0;
+        win.popup.win = 0;
+        if (!ctx.active)
+            ctx.active = win;
+    } else {
+        /* update window */
+        win.flags &= ~(nk_flags)(NK_WINDOW_PRIVATE-1);
+        win.flags |= flags;
+        if (!(win.flags & (NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE)))
+            win.bounds = bounds;
+        /* If this assert triggers you either:
+         *
+         * I.) Have more than one window with the same name or
+         * II.) You forgot to actually draw the window.
+         *      More specific you did not call `nk_clear` (nk_clear will be
+         *      automatically called for you if you are using one of the
+         *      provided demo backends). */
+        assert(win.seq != ctx.seq);
+        win.seq = ctx.seq;
+        if (!ctx.active && !(win.flags & NK_WINDOW_HIDDEN)) {
+            ctx.active = win;
+            ctx.end = win;
+        }
+    }
+    if (win.flags & NK_WINDOW_HIDDEN) {
+        ctx.current = win;
+        win.layout = 0;
+        return 0;
+    } else nk_start(ctx, win);
+
+    /* window overlapping */
+    if (!(win.flags & NK_WINDOW_HIDDEN) && !(win.flags & NK_WINDOW_NO_INPUT))
+    {
+        int inpanel, ishovered;
+        nk_window *iter = win;
+        float h = ctx.style.font.height + 2.0f * style.window.header.padding.y +
+            (2.0f * style.window.header.label_padding.y);
+        nk_rect win_bounds = (!(win.flags & NK_WINDOW_MINIMIZED))?
+            win.bounds: nk_rect(win.bounds.x, win.bounds.y, win.bounds.w, h);
+
+        /* activate window if hovered and no other window is overlapping this window */
+        inpanel = nk_input_has_mouse_click_down_in_rect(&ctx.input, NK_BUTTON_LEFT, win_bounds, nk_true);
+        inpanel = inpanel && ctx.input.mouse.buttons[NK_BUTTON_LEFT].clicked;
+        ishovered = nk_input_is_mouse_hovering_rect(&ctx.input, win_bounds);
+        if ((win != ctx.active) && ishovered && !ctx.input.mouse.buttons[NK_BUTTON_LEFT].down) {
+            iter = win.next;
+            while (iter) {
+                nk_rect iter_bounds = (!(iter.flags & NK_WINDOW_MINIMIZED))?
+                    iter.bounds: nk_rect(iter.bounds.x, iter.bounds.y, iter.bounds.w, h);
+                if (NK_INTERSECT(win_bounds.x, win_bounds.y, win_bounds.w, win_bounds.h,
+                    iter_bounds.x, iter_bounds.y, iter_bounds.w, iter_bounds.h) &&
+                    (!(iter.flags & NK_WINDOW_HIDDEN)))
+                    break;
+
+                if (iter.popup.win && iter.popup.active && !(iter.flags & NK_WINDOW_HIDDEN) &&
+                    NK_INTERSECT(win.bounds.x, win_bounds.y, win_bounds.w, win_bounds.h,
+                    iter.popup.win.bounds.x, iter.popup.win.bounds.y,
+                    iter.popup.win.bounds.w, iter.popup.win.bounds.h))
+                    break;
+                iter = iter.next;
+            }
+        }
+
+        /* activate window if clicked */
+        if (iter && inpanel && (win != ctx.end)) {
+            iter = win.next;
+            while (iter) {
+                /* try to find a panel with higher priority in the same position */
+                nk_rect iter_bounds = (!(iter.flags & NK_WINDOW_MINIMIZED))?
+                iter.bounds: nk_rect(iter.bounds.x, iter.bounds.y, iter.bounds.w, h);
+                if (NK_INBOX(ctx.input.mouse.pos.x, ctx.input.mouse.pos.y,
+                    iter_bounds.x, iter_bounds.y, iter_bounds.w, iter_bounds.h) &&
+                    !(iter.flags & NK_WINDOW_HIDDEN))
+                    break;
+                if (iter.popup.win && iter.popup.active && !(iter.flags & NK_WINDOW_HIDDEN) &&
+                    NK_INTERSECT(win_bounds.x, win_bounds.y, win_bounds.w, win_bounds.h,
+                    iter.popup.win.bounds.x, iter.popup.win.bounds.y,
+                    iter.popup.win.bounds.w, iter.popup.win.bounds.h))
+                    break;
+                iter = iter.next;
+            }
+        }
+        if (iter && !(win.flags & NK_WINDOW_ROM) && (win.flags & NK_WINDOW_BACKGROUND)) {
+            win.flags |= cast(nk_flags)NK_WINDOW_ROM;
+            iter.flags &= ~cast(nk_flags)NK_WINDOW_ROM;
+            ctx.active = iter;
+            if (!(iter.flags & NK_WINDOW_BACKGROUND)) {
+                /* current window is active in that position so transfer to top
+                 * at the highest priority in stack */
+                nk_remove_window(ctx, iter);
+                nk_insert_window(ctx, iter, NK_INSERT_BACK);
+            }
+        } else {
+            if (!iter && ctx.end != win) {
+                if (!(win.flags & NK_WINDOW_BACKGROUND)) {
+                    /* current window is active in that position so transfer to top
+                     * at the highest priority in stack */
+                    nk_remove_window(ctx, win);
+                    nk_insert_window(ctx, win, NK_INSERT_BACK);
+                }
+                win.flags &= ~cast(nk_flags)NK_WINDOW_ROM;
+                ctx.active = win;
+            }
+            if (ctx.end != win && !(win.flags & NK_WINDOW_BACKGROUND))
+                win.flags |= NK_WINDOW_ROM;
+        }
+    }
+    win.layout = cast(nk_panel*)nk_create_panel(ctx);
+    ctx.current = win;
+    ret = nk_panel_begin(ctx, title, NK_PANEL_WINDOW);
+    win.layout.offset_x = &win.scrollbar.x;
+    win.layout.offset_y = &win.scrollbar.y;
+    return ret;
+}
+
 void nk_end(nk_context* ctx);
 nk_window* nk_window_find(nk_context* ctx, const(char)* name);
 nk_rect nk_window_get_bounds(const(nk_context)* ctx);
@@ -1466,7 +1920,68 @@ nk_nine_slice nk_sub9slice_ptr(void*, nk_ushort w, nk_ushort h, nk_rect sub_regi
 nk_nine_slice nk_sub9slice_id(int, nk_ushort w, nk_ushort h, nk_rect sub_region, nk_ushort l, nk_ushort t, nk_ushort r, nk_ushort b);
 nk_nine_slice nk_sub9slice_handle(nk_handle, nk_ushort w, nk_ushort h, nk_rect sub_region, nk_ushort l, nk_ushort t, nk_ushort r, nk_ushort b);
 
-nk_hash nk_murmur_hash(const(void)* key, int len, nk_hash seed);
+nk_hash nk_murmur_hash(const(void)* key, int len, nk_hash seed)
+{
+    void NK_ROTL(T)(T x, T r) { return ((x) << (r) | ((x) >> (32 - r))); }
+
+    nk_uint h1 = seed;
+    nk_uint k1;
+    const(nk_byte)* data = cast(const(nk_byte)*)key;
+    const(nk_byte)* keyptr = data;
+    nk_byte* k1ptr;
+    const int bsize = k1.sizeof;
+    const int nblocks = len/4;
+
+    const nk_uint c1 = 0xcc9e2d51;
+    const nk_uint c2 = 0x1b873593;
+    const(nk_byte)* tail;
+    int i;
+
+    /* body */
+    if (!key) return 0;
+    for (i = 0; i < nblocks; ++i, keyptr += bsize) {
+        k1ptr = cast(nk_byte*)&k1;
+        k1ptr[0] = keyptr[0];
+        k1ptr[1] = keyptr[1];
+        k1ptr[2] = keyptr[2];
+        k1ptr[3] = keyptr[3];
+
+        k1 *= c1;
+        k1 = NK_ROTL(k1,15);
+        k1 *= c2;
+
+        h1 ^= k1;
+        h1 = NK_ROTL(h1,13);
+        h1 = h1*5+0xe6546b64;
+    }
+
+    /* tail */
+    tail = cast(const(nk_byte)*)(data + nblocks*4);
+    k1 = 0;
+    switch (len & 3) {
+        case 3: k1 ^= cast(nk_uint)(tail[2] << 16); /* fallthrough */
+        case 2: k1 ^= cast(nk_uint)(tail[1] << 8u); /* fallthrough */
+        case 1: k1 ^= tail[0];
+            k1 *= c1;
+            k1 = NK_ROTL(k1,15);
+            k1 *= c2;
+            h1 ^= k1;
+            break;
+        default: break;
+    }
+
+    /* finalization */
+    h1 ^= cast(nk_uint)len;
+    /* fmix32 */
+    h1 ^= h1 >> 16;
+    h1 *= 0x85ebca6b;
+    h1 ^= h1 >> 13;
+    h1 *= 0xc2b2ae35;
+    h1 ^= h1 >> 16;
+
+    return h1;
+}
+
 void nk_triangle_from_direction(nk_vec2* result, nk_rect r, float pad_x, float pad_y, nk_heading);
 pragma(mangle, "nk_vec2")
     nk_vec2 nk_vec2_(float x, float y);
@@ -1483,13 +1998,191 @@ nk_rect nk_rectv(const(float)* xywh);
 nk_rect nk_rectiv(const(int)* xywh);
 nk_vec2 nk_rect_pos(nk_rect);
 nk_vec2 nk_rect_size(nk_rect);
-int nk_strlen(const(char)* str);
-int nk_stricmp(const(char)* s1, const(char)* s2);
-int nk_stricmpn(const(char)* s1, const(char)* s2, int n);
-int nk_strtoi(const(char)* str, const(char)** endptr);
-float nk_strtof(const(char)* str, const(char)** endptr);
-double nk_strtod(const(char)* str, const(char)** endptr);
-int nk_strfilter(const(char)* text, const(char)* regexp);
+
+int nk_strlen(const(char)* str)
+{
+    int siz = 0;
+    assert(str);
+    while (str && *str++ != '\0') siz++;
+    return siz;
+}
+
+int nk_stricmp(const(char)* s1, const(char)* s2)
+{
+    nk_int c1,c2,d;
+    do {
+        c1 = *s1++;
+        c2 = *s2++;
+        d = c1 - c2;
+        while (d) {
+            if (c1 <= 'Z' && c1 >= 'A') {
+                d += ('a' - 'A');
+                if (!d) break;
+            }
+            if (c2 <= 'Z' && c2 >= 'A') {
+                d -= ('a' - 'A');
+                if (!d) break;
+            }
+            return ((d >= 0) << 1) - 1;
+        }
+    } while (c1);
+    return 0;
+}
+
+int nk_stricmpn(const(char)* s1, const(char)* s2, int n)
+{
+    int c1,c2,d;
+    assert(n >= 0);
+    do {
+        c1 = *s1++;
+        c2 = *s2++;
+        if (!n--) return 0;
+
+        d = c1 - c2;
+        while (d) {
+            if (c1 <= 'Z' && c1 >= 'A') {
+                d += ('a' - 'A');
+                if (!d) break;
+            }
+            if (c2 <= 'Z' && c2 >= 'A') {
+                d -= ('a' - 'A');
+                if (!d) break;
+            }
+            return ((d >= 0) << 1) - 1;
+        }
+    } while (c1);
+    return 0;
+}
+
+int nk_strtoi(const(char)* str, const(char)** endptr)
+{
+    int neg = 1;
+    const(char)* p = str;
+    int value = 0;
+
+    assert(str);
+    if (!str) return 0;
+
+    /* skip whitespace */
+    while (*p == ' ') p++;
+    if (*p == '-') {
+        neg = -1;
+        p++;
+    }
+    while (*p && *p >= '0' && *p <= '9') {
+        value = value * 10 + cast(int) (*p - '0');
+        p++;
+    }
+    if (endptr)
+        *endptr = p;
+    return neg*value;
+}
+
+float nk_strtof(const(char)* str, const(char)** endptr)
+{
+    float float_value;
+    double double_value;
+    double_value = nk_strtod(str, endptr);
+    float_value = cast(float)double_value;
+    return float_value;
+}
+
+double nk_strtod(const(char)* str, const(char)** endptr)
+{
+    double m;
+    double neg = 1.0;
+    const char *p = str;
+    double value = 0;
+    double number = 0;
+
+    assert(str);
+    if (!str) return 0;
+
+    /* skip whitespace */
+    while (*p == ' ') p++;
+    if (*p == '-') {
+        neg = -1.0;
+        p++;
+    }
+
+    while (*p && *p != '.' && *p != 'e') {
+        value = value * 10.0 + cast(double) (*p - '0');
+        p++;
+    }
+
+    if (*p == '.') {
+        p++;
+        for(m = 0.1; *p && *p != 'e'; p++ ) {
+            value = value + cast(double) (*p - '0') * m;
+            m *= 0.1;
+        }
+    }
+    if (*p == 'e') {
+        int i, pow, div;
+        p++;
+        if (*p == '-') {
+            div = nk_true;
+            p++;
+        } else if (*p == '+') {
+            div = nk_false;
+            p++;
+        } else div = nk_false;
+
+        for (pow = 0; *p; p++)
+            pow = pow * 10 + cast(int) (*p - '0');
+
+        for (m = 1.0, i = 0; i < pow; i++)
+            m *= 10.0;
+
+        if (div)
+            value /= m;
+        else value *= m;
+    }
+    number = value * neg;
+    if (endptr)
+        *endptr = p;
+    return number;
+}
+
+int nk_str_match_star(int c, const(char)* regexp, const(char)* text)
+{
+    do {/* a '* matches zero or more instances */
+        if (nk_str_match_here(regexp, text))
+            return 1;
+    } while (*text != '\0' && (*text++ == c || c == '.'));
+    return 0;
+}
+
+int nk_str_match_here(const(char)* regexp, const(char)* text)
+{
+    if (regexp[0] == '\0')
+        return 1;
+    if (regexp[1] == '*')
+        return nk_str_match_star(regexp[0], regexp+2, text);
+    if (regexp[0] == '$' && regexp[1] == '\0')
+        return *text == '\0';
+    if (*text!='\0' && (regexp[0]=='.' || regexp[0]==*text))
+        return nk_str_match_here(regexp+1, text+1);
+    return 0;
+}
+
+int nk_strfilter(const(char)* text, const(char)* regexp)
+{
+    /*
+    c    matches any literal character c
+    .    matches any single character
+    ^    matches the beginning of the input string
+    $    matches the end of the input string
+    *    matches zero or more occurrences of the previous character*/
+    if (regexp[0] == '^')
+        return nk_str_match_here(regexp+1, text);
+    do {    /* must look even if string is empty */
+        if (nk_str_match_here(regexp, text))
+            return 1;
+    } while (*text++ != '\0');
+    return 0;
+}
+
 int nk_strmatch_fuzzy_string(const(char)* str, const(char)* pattern, int* out_score);
 int nk_strmatch_fuzzy_text(const(char)* txt, int txt_len, const(char)* pattern, int* out_score);
 int nk_utf_decode(const(char)*, nk_rune*, int);
@@ -1704,7 +2397,7 @@ void nk_fill_polygon(nk_command_buffer*, float*, int point_count, nk_color);
 
 void* nk_buffer_align(void *unaligned, nk_size align_, nk_size *alignment, nk_buffer_allocation_type type)
 {
-    void *memory = 0;
+    void* memory = null;
     switch (type) {
         default:
         case NK_BUFFER_MAX:
@@ -1738,16 +2431,16 @@ void* nk_buffer_realloc(nk_buffer *b, nk_size capacity, nk_size *size)
     assert(b);
     assert(size);
     if (!b || !size || !b.pool.alloc || !b.pool.free)
-        return 0;
+        return null;
 
     buffer_size = b.memory.size;
     temp = b.pool.alloc(b.pool.userdata, b.memory.ptr, capacity);
     assert(temp);
-    if (!temp) return 0;
+    if (!temp) return null;
 
     *size = capacity;
     if (temp != b.memory.ptr) {
-        NK_MEMCPY(temp, b.memory.ptr, buffer_size);
+        nk_memcopy(temp, b.memory.ptr, buffer_size);
         b.pool.free(b.pool.userdata, b.memory.ptr);
     }
 
@@ -1757,12 +2450,12 @@ void* nk_buffer_realloc(nk_buffer *b, nk_size capacity, nk_size *size)
         return temp;
     } else {
         /* copy back buffer to the end of the new buffer */
-        void *dst, *src;
+        void* dst, src;
         nk_size back_size;
         back_size = buffer_size - b.size;
-        dst = nk_ptr_add(void, temp, capacity - back_size);
-        src = nk_ptr_add(void, temp, b.size);
-        NK_MEMCPY(dst, src, back_size);
+        dst = nk_ptr_add!void(temp, capacity - back_size);
+        src = nk_ptr_add!void(temp, b.size);
+        nk_memcopy(dst, src, back_size);
         b.size = capacity - back_size;
     }
     return temp;
@@ -1789,13 +2482,13 @@ void* nk_buffer_alloc(nk_buffer *b, nk_buffer_allocation_type type, nk_size size
 
     assert(b);
     assert(size);
-    if (!b || !size) return 0;
+    if (!b || !size) return null;
     b.needed += size;
 
     /* calculate total size with needed alignment + size */
     if (type == NK_BUFFER_FRONT)
-        unaligned = nk_ptr_add(void.init, b.memory.ptr, b.allocated);
-    else unaligned = nk_ptr_add(void.init, b.memory.ptr, b.size - size);
+        unaligned = nk_ptr_add!void(b.memory.ptr, b.allocated);
+    else unaligned = nk_ptr_add!void(b.memory.ptr, b.size - size);
     memory = nk_buffer_align(unaligned, align_, &alignment, type);
 
     /* check if buffer has enough memory*/
@@ -1806,21 +2499,21 @@ void* nk_buffer_alloc(nk_buffer *b, nk_buffer_allocation_type type, nk_size size
     if (full) {
         nk_size capacity;
         if (b.type != NK_BUFFER_DYNAMIC)
-            return 0;
+            return null;
         assert(b.pool.alloc && b.pool.free);
         if (b.type != NK_BUFFER_DYNAMIC || !b.pool.alloc || !b.pool.free)
-            return 0;
+            return null;
 
         /* buffer is full so allocate bigger buffer if dynamic */
         capacity = cast(nk_size)(cast(float)b.memory.size * b.grow_factor);
-        capacity = nk_malloc(capacity, nk_round_up_pow2((nk_uint)(b.allocated + size)));
+        capacity = nk_max(capacity, nk_round_up_pow2(cast(nk_uint)(b.allocated + size)));
         b.memory.ptr = nk_buffer_realloc(b, capacity, &b.memory.size);
-        if (!b.memory.ptr) return 0;
+        if (!b.memory.ptr) return null;
 
         /* align_ newly allocated pointer */
         if (type == NK_BUFFER_FRONT)
-            unaligned = nk_ptr_add(void, b.memory.ptr, b.allocated);
-        else unaligned = nk_ptr_add(void, b.memory.ptr, b.size - size);
+            unaligned = nk_ptr_add!void(b.memory.ptr, b.allocated);
+        else unaligned = nk_ptr_add!void(b.memory.ptr, b.size - size);
         memory = nk_buffer_align(unaligned, align_, &alignment, type);
     }
     if (type == NK_BUFFER_FRONT)
@@ -1841,12 +2534,12 @@ void* nk_command_buffer_push(nk_command_buffer* b, nk_command_type t, nk_size si
 
     assert(b);
     assert(b.base);
-    if (!b) return 0;
+    if (!b) return null;
     cmd = cast(nk_command*)nk_buffer_alloc(b.base,NK_BUFFER_FRONT,size,align_);
-    if (!cmd) return 0;
+    if (!cmd) return null;
 
     /* make sure the offset to the next command is aligned */
-    b.last = cast(nk_size)(cast(nk_byte*)cmd - cast(nk_byte*)b.base.memory.ptr);
+    b.last = cast(nk_size)(cast(nk_byte*) cmd - cast(nk_byte*)b.base.memory.ptr);
     unaligned = cast(nk_byte*)cmd + size;
     memory = nk_align_ptr(unaligned, align_);
     alignment = cast(nk_size)(cast(nk_byte*)memory - cast(nk_byte*)unaligned);
@@ -1905,10 +2598,82 @@ bool nk_input_is_key_released(const(nk_input)*, nk_keys);
 bool nk_input_is_key_down(const(nk_input)*, nk_keys);
 version(NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
     void nk_draw_list_init(nk_draw_list*);
-    void nk_draw_list_setup(nk_draw_list*, const(nk_convert_config)*, nk_buffer* cmds, nk_buffer* vertices, nk_buffer* elements, nk_anti_aliasing line_aa, nk_anti_aliasing shape_aa);
-    const(nk_draw_command)* nk__draw_list_begin(const(nk_draw_list)*, const(nk_buffer)*);
-    const(nk_draw_command)* nk__draw_list_next(const(nk_draw_command)*, const(nk_buffer)*, const(nk_draw_list)*);
-    const(nk_draw_command)* nk__draw_list_end(const(nk_draw_list)*, const(nk_buffer)*);
+
+    void nk_draw_list_setup(nk_draw_list* canvas, const(nk_convert_config)* config, nk_buffer* cmds, nk_buffer* vertices, nk_buffer* elements, nk_anti_aliasing line_aa, nk_anti_aliasing shape_aa)
+    {
+        assert(canvas);
+        assert(config);
+        assert(cmds);
+        assert(vertices);
+        assert(elements);
+        if (!canvas || !config || !cmds || !vertices || !elements)
+            return;
+
+        canvas.buffer = cmds;
+        canvas.config = *config;
+        canvas.elements = elements;
+        canvas.vertices = vertices;
+        canvas.line_AA = line_aa;
+        canvas.shape_AA = shape_aa;
+        canvas.clip_rect = nk_null_rect;
+
+        canvas.cmd_offset = 0;
+        canvas.element_count = 0;
+        canvas.vertex_count = 0;
+        canvas.cmd_offset = 0;
+        canvas.cmd_count = 0;
+        canvas.path_count = 0;
+    }
+
+    const(nk_draw_command)* nk__draw_list_begin(const(nk_draw_list)* canvas, const(nk_buffer)* buffer)
+    {
+        nk_byte *memory;
+        nk_size offset;
+        const(nk_draw_command)* cmd;
+
+        assert(buffer);
+        if (!buffer || !buffer.size || !canvas.cmd_count)
+            return null;
+
+        memory = cast(nk_byte*)buffer.memory.ptr;
+        offset = buffer.memory.size - canvas.cmd_offset;
+        cmd = nk_ptr_add!nk_draw_command(memory, offset);
+        return cmd;
+    }
+
+    const(nk_draw_command)* nk__draw_list_next(const(nk_draw_command)* cmd, const(nk_buffer)* buffer, const(nk_draw_list)* canvas)
+    {
+        const(nk_draw_command)* end;
+        assert(buffer);
+        assert(canvas);
+        if (!cmd || !buffer || !canvas)
+            return 0;
+
+        end = nk__draw_list_end(canvas, buffer);
+        if (cmd <= end) return null;
+        return (cmd-1);
+    }
+
+    const(nk_draw_command)* nk__draw_list_end(const(nk_draw_list)* canvas, const(nk_buffer)* buffer)
+    {
+        nk_size size;
+        nk_size offset;
+        nk_byte *memory;
+        const(nk_draw_command)* end;
+
+        assert(buffer);
+        assert(canvas);
+        if (!buffer || !canvas)
+            return null;
+
+        memory = cast(nk_byte*)buffer.memory.ptr;
+        size = buffer.memory.size;
+        offset = size - canvas.cmd_offset;
+        end = nk_ptr_add!nk_draw_command(memory, offset);
+        end -= (canvas.cmd_count-1);
+        return end;
+    }
+
     void nk_draw_list_path_clear(nk_draw_list*);
     void nk_draw_list_path_line_to(nk_draw_list*, nk_vec2 pos);
     void nk_draw_list_path_arc_to_fast(nk_draw_list*, nk_vec2 center, float radius, int a_min, int a_max);

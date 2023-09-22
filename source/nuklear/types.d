@@ -67,6 +67,11 @@ enum nk_popup_type      { NK_POPUP_STATIC, NK_POPUP_DYNAMIC }
 enum nk_layout_format   { NK_DYNAMIC, NK_STATIC }
 enum nk_tree_type       { NK_TREE_NODE, NK_TREE_TAB }
 
+enum nk_window_insert_location {
+    NK_INSERT_BACK, /* inserts window into the back of list (front of screen) */
+    NK_INSERT_FRONT /* inserts window into the front of list (back of screen) */
+}
+
 extern(C) @nogc nothrow {
     alias nk_plugin_alloc = void* function(nk_handle, void *old, nk_size);
     alias nk_plugin_free = void function(nk_handle, void *old);
@@ -883,7 +888,7 @@ version(NK_INCLUDE_VERTEX_BUFFER_OUTPUT)
         nk_size offset;
     }
     
-    const(nk_draw_vertex_layout_element) NK_VERTEX_LAYOUT_END = { nk_draw_vertex_layout_attribute.NK_VERTEX_ATTRIBUTE_COUNT,nk_draw_vertex_layout_format.NK_FORMAT_COUNT,0 }
+    const(nk_draw_vertex_layout_element) NK_VERTEX_LAYOUT_END = { nk_draw_vertex_layout_attribute.NK_VERTEX_ATTRIBUTE_COUNT,nk_draw_vertex_layout_format.NK_FORMAT_COUNT,0 };
 
     struct nk_draw_command {
         uint elem_count;
