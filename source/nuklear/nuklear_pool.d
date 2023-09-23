@@ -61,6 +61,8 @@ nk_page_element* nk_pool_alloc(nk_pool* pool)
             pool.pages = page;
             page.size = 0;
         }
-    } return &pool.pages.win[pool.pages.size++];
+    } 
+    
+    return &pool.pages.win[pool.pages.size++];
 }
 
