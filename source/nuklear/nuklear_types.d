@@ -1,6 +1,6 @@
-module nuklear.types;
+module nuklear.nuklear_types;
 
-import nuklear.utils;
+import nuklear.nuklear_util;
 
 enum NK_UNDEFINED = -1.0f;
 enum NK_UTF_INVALID = 0xFFFD;
@@ -9,6 +9,7 @@ enum NK_INPUT_MAX = 16;
 enum NK_MAX_NUMBER_BUFFER = 64;
 enum NK_SCROLLBAR_HIDING_TIMEOUT = 4.0f;
 enum NK_DEFAULT_COMMAND_BUFFER_SIZE = 4*1024;
+enum NK_BUFFER_DEFAULT_INITIAL_SIZE = 4*1024;
 enum NK_POOL_DEFAULT_CAPACITY = 16;
 
 enum nk_null_rect = nk_rect(-8192.0f, -8192.0f, 16_384, 16_384);
@@ -72,6 +73,8 @@ enum nk_window_insert_location {
 }
 enum NK_INSERT_BACK = nk_window_insert_location.NK_INSERT_BACK;
 enum NK_INSERT_FRONT = nk_window_insert_location.NK_INSERT_FRONT;
+
+enum { NK_DO_NOT_STOP_ON_NEW_LINE, NK_STOP_ON_NEW_LINE }
 
 extern(C) @nogc nothrow {
     alias nk_plugin_alloc = void* function(nk_handle, void *old, nk_size);
@@ -1908,6 +1911,7 @@ enum {
     NK_CLIPPING_ON = nk_command_clipping.NK_CLIPPING_ON,
     NK_STYLE_ITEM_COLOR = nk_style_item_type.NK_STYLE_ITEM_COLOR,
     NK_STYLE_ITEM_IMAGE = nk_style_item_type.NK_STYLE_ITEM_IMAGE,
+    NK_STYLE_ITEM_NINE_SLICE = nk_style_item_type.NK_STYLE_ITEM_NINE_SLICE,
     NK_HEADER_LEFT = nk_style_header_align.NK_HEADER_LEFT,
     NK_HEADER_RIGHT = nk_style_header_align.NK_HEADER_RIGHT,
     NK_PANEL_NONE = nk_panel_type.NK_PANEL_NONE,
@@ -1980,3 +1984,56 @@ version(NK_INCLUDE_VERTEX_BUFFER_OUTPUT)
     enum NK_FORMAT_COLOR_END = nk_draw_vertex_layout_format.NK_FORMAT_COLOR_END;
     enum NK_FORMAT_COUNT = nk_draw_vertex_layout_format.NK_FORMAT_COUNT;
 }
+
+enum nk_property_status {
+    NK_PROPERTY_DEFAULT,
+    NK_PROPERTY_EDIT,
+    NK_PROPERTY_DRAG
+}
+alias NK_PROPERTY_DEFAULT = nk_property_status.NK_PROPERTY_DEFAULT;
+alias NK_PROPERTY_EDIT = nk_property_status.NK_PROPERTY_EDIT;
+alias NK_PROPERTY_DRAG = nk_property_status.NK_PROPERTY_DRAG;
+
+enum nk_property_filter {
+    NK_FILTER_INT,
+    NK_FILTER_FLOAT
+}
+alias NK_FILTER_INT = nk_property_filter.NK_FILTER_INT;
+alias NK_FILTER_FLOAT = nk_property_filter.NK_FILTER_FLOAT;
+
+enum nk_property_kind {
+    NK_PROPERTY_INT,
+    NK_PROPERTY_FLOAT,
+    NK_PROPERTY_DOUBLE
+}
+alias NK_PROPERTY_INT = nk_property_kind.NK_PROPERTY_INT;
+alias NK_PROPERTY_FLOAT = nk_property_kind.NK_PROPERTY_FLOAT;
+alias NK_PROPERTY_DOUBLE = nk_property_kind.NK_PROPERTY_DOUBLE;
+
+union nk_property {
+    int i;
+    float f;
+    double d;
+}
+
+struct nk_property_variant {
+    nk_property_kind kind;
+    nk_property value;
+    nk_property min_value;
+    nk_property max_value;
+    nk_property step;
+}
+
+struct nk_text {
+    nk_vec2 padding;
+    nk_color background;
+    nk_color text;
+}
+
+enum nk_toggle_type {
+    NK_TOGGLE_CHECK,
+    NK_TOGGLE_OPTION
+}
+alias NK_TOGGLE_CHECK = nk_toggle_type.NK_TOGGLE_CHECK;
+alias NK_TOGGLE_OPTION = nk_toggle_type.NK_TOGGLE_OPTION;
+
