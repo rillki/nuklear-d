@@ -10,6 +10,11 @@ __gshared:
 
 import nuklear.nuklear_types;
 import nuklear.nuklear_util;
+import nuklear.nuklear_panel;
+import nuklear.nuklear_layout;
+import nuklear.nuklear_draw;
+import nuklear.nuklear_window;
+import nuklear.nuklear_table;
 
 nk_bool nk_group_scrolled_offset_begin(nk_context* ctx, nk_uint* x_offset, nk_uint* y_offset, const(char)* title, nk_flags flags)
 {
@@ -36,7 +41,7 @@ nk_bool nk_group_scrolled_offset_begin(nk_context* ctx, nk_uint* x_offset, nk_ui
     panel.buffer = win.buffer;
     panel.layout = cast(nk_panel*)nk_create_panel(ctx);
     ctx.current = &panel;
-    nk_panel_begin(ctx, (flags & NK_WINDOW_TITLE) ? title: 0, NK_PANEL_GROUP);
+    nk_panel_begin(ctx, (flags & NK_WINDOW_TITLE) ? title: null, NK_PANEL_GROUP);
 
     win.buffer = panel.buffer;
     win.buffer.clip = panel.layout.clip;
@@ -52,9 +57,9 @@ nk_bool nk_group_scrolled_offset_begin(nk_context* ctx, nk_uint* x_offset, nk_ui
         nk_flags f = panel.layout.flags;
         nk_group_scrolled_end(ctx);
         if (f & NK_WINDOW_CLOSED)
-            return NK_WINDOW_CLOSED;
+            return cast(nk_bool)NK_WINDOW_CLOSED;
         if (f & NK_WINDOW_MINIMIZED)
-            return NK_WINDOW_MINIMIZED;
+            return cast(nk_bool)NK_WINDOW_MINIMIZED;
     }
     return 1;
 }

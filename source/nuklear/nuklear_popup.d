@@ -10,6 +10,11 @@ __gshared:
 
 import nuklear.nuklear_types;
 import nuklear.nuklear_util;
+import nuklear.nuklear_window;
+import nuklear.nuklear_panel;
+import nuklear.nuklear_input;
+import nuklear.nuklear_context;
+import nuklear.nuklear_draw;
 
 nk_bool nk_popup_begin(nk_context* ctx, nk_popup_type type, const(char)* title, nk_flags flags, nk_rect rect)
 {
@@ -101,7 +106,7 @@ nk_bool nk_popup_begin(nk_context* ctx, nk_popup_type type, const(char)* title, 
         ctx.memory.allocated = allocated;
         ctx.current = win;
         nk_free_panel(ctx, popup.layout);
-        popup.layout = 0;
+        popup.layout = null;
         return 0;
     }
 }
@@ -153,7 +158,7 @@ version (NK_BUTTON_TRIGGER_ON_RELEASE) {
             root.flags |= NK_WINDOW_REMOVE_ROM;
             root = root.parent;
         }
-        return is_active;
+        return cast(nk_bool)is_active;
     }
     popup.bounds = body;
     popup.parent = win;
@@ -170,7 +175,7 @@ version (NK_BUTTON_TRIGGER_ON_RELEASE) {
     nk_push_scissor(&popup.buffer, nk_null_rect);
     ctx.current = popup;
 
-    nk_panel_begin(ctx, 0, panel_type);
+    nk_panel_begin(ctx, null, panel_type);
     win.buffer = popup.buffer;
     popup.layout.parent = win.layout;
     popup.layout.offset_x = &popup.scrollbar.x;
@@ -183,7 +188,7 @@ version (NK_BUTTON_TRIGGER_ON_RELEASE) {
         root.flags |= NK_WINDOW_ROM;
         root = root.parent;
     }}
-    return is_active;
+    return cast(nk_bool)is_active;
 }
 void nk_popup_close(nk_context* ctx)
 {

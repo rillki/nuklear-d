@@ -18,7 +18,7 @@ void nk_pool_init(nk_pool* pool, nk_allocator* alloc, uint capacity)
     pool.alloc = *alloc;
     pool.capacity = capacity;
     pool.type = NK_BUFFER_DYNAMIC;
-    pool.pages = 0;
+    pool.pages = null;
 }
 void nk_pool_free(nk_pool* pool)
 {
@@ -50,13 +50,13 @@ nk_page_element* nk_pool_alloc(nk_pool* pool)
         nk_page* page = void;
         if (pool.type == NK_BUFFER_FIXED) {
             assert(pool.pages);
-            if (!pool.pages) return 0;
+            if (!pool.pages) return null;
             assert(pool.pages.size < pool.capacity);
-            return 0;
+            return null;
         } else {
             nk_size size = nk_page.sizeof;
             size += (pool.capacity - 1) * nk_page_element.sizeof;
-            page = cast(nk_page*)pool.alloc.alloc(pool.alloc.userdata,0, size);
+            page = cast(nk_page*)pool.alloc.alloc(pool.alloc.userdata, null, size);
             page.next = pool.pages;
             pool.pages = page;
             page.size = 0;

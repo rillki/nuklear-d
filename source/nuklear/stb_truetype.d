@@ -2653,14 +2653,6 @@ void stbtt_GetBakedQuad(const(stbtt_bakedchar)* chardata, int pw, int ph, int ch
    *xpos += b.xadvance;
 }
 alias stbrp_coord = int;
-struct stbrp_context {
-   int width, height;
-   int x, y, bottom_y;
-}
-
-struct stbrp_node {
-   ubyte x;
-}
 
 void stbrp_init_target(stbrp_context* con, int pw, int ph, stbrp_node* nodes, int num_nodes)
 {
@@ -2673,7 +2665,7 @@ void stbrp_init_target(stbrp_context* con, int pw, int ph, stbrp_node* nodes, in
    cast(void)num_nodes.sizeof;
 }
 
-void stbrp_pack_rects(stbrp_context* con, stbrp_rect* rects, int num_rects)
+void stbrp_pack_rects_tt(stbrp_context* con, stbrp_rect* rects, int num_rects)
 {
    int i = void;
    for (i=0; i < num_rects; ++i) {

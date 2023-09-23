@@ -10,6 +10,7 @@ __gshared:
 
 import nuklear.nuklear_types;
 import nuklear.nuklear_util;
+import nuklear.nuklear_layout;
 
 void nk_widget_state_reset(S)(S *s) {
     if ((*s) & NK_WIDGET_STATE_MODIFIED)

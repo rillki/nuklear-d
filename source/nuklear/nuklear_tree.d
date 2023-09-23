@@ -10,6 +10,13 @@ __gshared:
 
 import nuklear.nuklear_types;
 import nuklear.nuklear_util;
+import nuklear.nuklear_layout;
+import nuklear.nuklear_draw;
+import nuklear.nuklear_text;
+import nuklear.nuklear_widget;
+import nuklear.nuklear_table;
+import nuklear.nuklear_button;
+import nuklear.nuklear_selectable;
 
 int nk_tree_state_base(nk_context* ctx, nk_tree_type type, nk_image* img, const(char)* title, nk_collapse_states* state)
 {
@@ -69,9 +76,9 @@ int nk_tree_state_base(nk_context* ctx, nk_tree_type type, nk_image* img, const(
     } else text.background = style.window.background;
 
     /* update node state */
-    in_ = (!(layout.flags & NK_WINDOW_ROM)) ? &ctx.input: 0;
-    in_ = (in_ && widget_state == NK_WIDGET_VALID) ? &ctx.input : 0;
-    if (nk_button_behavior(&ws, header, in_, NK_BUTTON_DEFAULT))
+    in_ = (!(layout.flags & NK_WINDOW_ROM)) ? &ctx.input: null;
+    in_ = (in_ && widget_state == NK_WIDGET_VALID) ? &ctx.input : null;
+    if (nk_button_behavior_(&ws, header, in_, NK_BUTTON_DEFAULT))
         *state = (*state == NK_MAXIMIZED) ? NK_MINIMIZED : NK_MAXIMIZED;
 
     /* select correct button style */
@@ -92,7 +99,7 @@ int nk_tree_state_base(nk_context* ctx, nk_tree_type type, nk_image* img, const(
     sym.y = header.y + style.tab.padding.y;
     sym.x = header.x + style.tab.padding.x;
     nk_do_button_symbol(&ws, &win.buffer, sym, symbol, NK_BUTTON_DEFAULT,
-        button, 0, style.font);
+        button, null, style.font);
 
     if (img) {
         /* draw optional image icon */
@@ -143,11 +150,11 @@ int nk_tree_base(nk_context* ctx, nk_tree_type type, nk_image* img, const(char)*
 }
 nk_bool nk_tree_state_push(nk_context* ctx, nk_tree_type type, const(char)* title, nk_collapse_states* state)
 {
-    return nk_tree_state_base(ctx, type, 0, title, state);
+    return cast(nk_bool)nk_tree_state_base(ctx, type, null, title, state);
 }
 nk_bool nk_tree_state_image_push(nk_context* ctx, nk_tree_type type, nk_image img, const(char)* title, nk_collapse_states* state)
 {
-    return nk_tree_state_base(ctx, type, &img, title, state);
+    return cast(nk_bool)nk_tree_state_base(ctx, type, &img, title, state);
 }
 void nk_tree_state_pop(nk_context* ctx)
 {
@@ -169,11 +176,11 @@ void nk_tree_state_pop(nk_context* ctx)
 }
 nk_bool nk_tree_push_hashed(nk_context* ctx, nk_tree_type type, const(char)* title, nk_collapse_states initial_state, const(char)* hash, int len, int line)
 {
-    return nk_tree_base(ctx, type, 0, title, initial_state, hash, len, line);
+    return cast(nk_bool)nk_tree_base(ctx, type, null, title, initial_state, hash, len, line);
 }
 nk_bool nk_tree_image_push_hashed(nk_context* ctx, nk_tree_type type, nk_image img, const(char)* title, nk_collapse_states initial_state, const(char)* hash, int len, int seed)
 {
-    return nk_tree_base(ctx, type, &img, title, initial_state, hash, len, seed);
+    return cast(nk_bool)nk_tree_base(ctx, type, &img, title, initial_state, hash, len, seed);
 }
 void nk_tree_pop(nk_context* ctx)
 {
@@ -240,8 +247,8 @@ int nk_tree_element_image_push_hashed_base(nk_context* ctx, nk_tree_type type, n
         default: break;}
     }
 
-    in_ = (!(layout.flags & NK_WINDOW_ROM)) ? &ctx.input: 0;
-    in_ = (in_ && widget_state == NK_WIDGET_VALID) ? &ctx.input : 0;
+    in_ = (!(layout.flags & NK_WINDOW_ROM)) ? &ctx.input: null;
+    in_ = (in_ && widget_state == NK_WIDGET_VALID) ? &ctx.input : null;
 
     /* select correct button style */
     if (*state == NK_MAXIMIZED) {
@@ -267,7 +274,7 @@ int nk_tree_element_image_push_hashed_base(nk_context* ctx, nk_tree_type type, n
     nk_rect label = void;
     /* calculate size of the text and tooltip */
     text_len = nk_strlen(title);
-    text_width = style.font.width(style.font.userdata, style.font.height, title, text_len);
+    text_width = style.font.width(cast(nk_handle)style.font.userdata, style.font.height, title, text_len);
     text_width += (4 * padding.x);
 
     header.w = nk_max(header.w, sym.w + item_spacing.x);
@@ -312,11 +319,11 @@ int nk_tree_element_base(nk_context* ctx, nk_tree_type type, nk_image* img, cons
 }
 nk_bool nk_tree_element_push_hashed(nk_context* ctx, nk_tree_type type, const(char)* title, nk_collapse_states initial_state, nk_bool* selected, const(char)* hash, int len, int seed)
 {
-    return nk_tree_element_base(ctx, type, 0, title, initial_state, selected, hash, len, seed);
+    return cast(nk_bool)nk_tree_element_base(ctx, type, null, title, initial_state, selected, hash, len, seed);
 }
 nk_bool nk_tree_element_image_push_hashed(nk_context* ctx, nk_tree_type type, nk_image img, const(char)* title, nk_collapse_states initial_state, nk_bool* selected, const(char)* hash, int len, int seed)
 {
-    return nk_tree_element_base(ctx, type, &img, title, initial_state, selected, hash, len, seed);
+    return cast(nk_bool)nk_tree_element_base(ctx, type, &img, title, initial_state, selected, hash, len, seed);
 }
 void nk_tree_element_pop(nk_context* ctx)
 {

@@ -12,3 +12,32 @@ struct stbrp_rect
    int was_packed;
 }
 
+struct stbrp_context {
+   int width, height;
+   union {
+      struct {
+         int x, y, bottom_y;
+      }
+      struct {
+         int align_;
+         int init_mode;
+         int heuristic;
+         int num_nodes;
+         stbrp_node* active_head;
+         stbrp_node* free_head;
+         stbrp_node[2] extra;
+      }
+   }
+}
+
+struct stbrp_node {
+   stbrp_coord x;
+   union {
+      struct {
+         stbrp_coord y;
+         stbrp_node* next;
+      }
+   }
+}
+
+

@@ -30,7 +30,7 @@ nk_rune nk_utf_decode_byte(char c, int* i)
 {
     assert(i);
     if (!i) return 0;
-    for(*i = 0; *i < cast(int)NK_LEN(nk_utfmask.ptr); ++(*i)) {
+    for(*i = 0; *i < cast(int)(nk_utfmask.length); ++(*i)) {
         if ((cast(nk_byte)c & nk_utfmask[*i]) == nk_utfbyte[*i])
             return cast(nk_byte)(c & ~nk_utfmask[*i]);
     }
@@ -115,11 +115,11 @@ const(char)* nk_utf_at(const(char)* buffer, int length, int index, nk_rune* unic
     assert(unicode);
     assert(len);
 
-    if (!buffer || !unicode || !len) return 0;
+    if (!buffer || !unicode || !len) return null;
     if (index < 0) {
         *unicode = NK_UTF_INVALID;
         *len = 0;
-        return 0;
+        return null;
     }
 
     text = buffer;
@@ -135,7 +135,7 @@ const(char)* nk_utf_at(const(char)* buffer, int length, int index, nk_rune* unic
         src_len = src_len + glyph_len;
         glyph_len = nk_utf_decode(text + src_len, unicode, text_len - src_len);
     }
-    if (i != index) return 0;
+    if (i != index) return null;
     return buffer + src_len;
 }
 

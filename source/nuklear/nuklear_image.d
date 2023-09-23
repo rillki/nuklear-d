@@ -10,10 +10,12 @@ __gshared:
 
 import nuklear.nuklear_types;
 import nuklear.nuklear_util;
+import nuklear.nuklear_widget;
+import nuklear.nuklear_draw;
 
 nk_handle nk_handle_ptr(void* ptr)
 {
-    nk_handle handle = {0};
+    nk_handle handle;
     handle.ptr = ptr;
     return handle;
 }

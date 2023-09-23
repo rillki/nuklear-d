@@ -14,19 +14,6 @@ import nuklear.nuklear_util;
 version (NK_INCLUDE_DEFAULT_ALLOCATOR) {
     import core.stdc.stdlib;
 
-    void* nk_malloc(nk_handle unused, void* old, nk_size size)
-    {
-        cast(void)(unused);
-        cast(void)(old);
-        return malloc(size);
-    }
-
-    void nk_mfree(nk_handle unused, void* ptr)
-    {
-        cast(void)(unused);
-        free(ptr);
-    }
-
     void nk_buffer_init_default(nk_buffer* buffer)
     {
         nk_allocator alloc = void;

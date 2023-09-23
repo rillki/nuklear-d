@@ -10,6 +10,9 @@ __gshared:
 
 import nuklear.nuklear_types;
 import nuklear.nuklear_util;
+import nuklear.nuklear_draw;
+import nuklear.nuklear_widget;
+import nuklear.nuklear_input;
 
 nk_size nk_progress_behavior(nk_flags* state, nk_input* in_, nk_rect r, nk_rect cursor, nk_size max, nk_size value, nk_bool modifiable)
 {
@@ -26,8 +29,8 @@ nk_size nk_progress_behavior(nk_flags* state, nk_input* in_, nk_rect r, nk_rect 
 
     if (in_ && left_mouse_down && left_mouse_click_in_cursor) {
         if (left_mouse_down && left_mouse_click_in_cursor) {
-            float ratio = NK_MAX(0, cast(float)(in_.mouse.pos.x - cursor.x)) / cast(float)cursor.w;
-            value = cast(nk_size)NK_CLAMP(0, cast(float)max * ratio, cast(float)max);
+            float ratio = nk_max(0, cast(float)(in_.mouse.pos.x - cursor.x)) / cast(float)cursor.w;
+            value = cast(nk_size)nk_clamp(0, cast(float)max * ratio, cast(float)max);
             in_.mouse.buttons[NK_BUTTON_LEFT].clicked_pos.x = cursor.x + cursor.w/2.0f;
             *state |= NK_WIDGET_STATE_ACTIVE;
         }
@@ -98,20 +101,20 @@ nk_size nk_do_progress(nk_flags* state, nk_command_buffer* out_, nk_rect bounds,
     if (!out_ || !style) return 0;
 
     /* calculate progressbar cursor */
-    cursor.w = NK_MAX(bounds.w, 2 * style.padding.x + 2 * style.border);
-    cursor.h = NK_MAX(bounds.h, 2 * style.padding.y + 2 * style.border);
+    cursor.w = nk_max(bounds.w, 2 * style.padding.x + 2 * style.border);
+    cursor.h = nk_max(bounds.h, 2 * style.padding.y + 2 * style.border);
     cursor = nk_pad_rect(bounds, nk_vec2(style.padding.x + style.border, style.padding.y + style.border));
     prog_scale = cast(float)value / cast(float)max;
 
     /* update progressbar */
-    prog_value = NK_MIN(value, max);
+    prog_value = nk_min(value, max);
     prog_value = nk_progress_behavior(state, in_, bounds, cursor,max, prog_value, modifiable);
     cursor.w = cursor.w * prog_scale;
 
     /* draw progressbar */
-    if (style.draw_begin) style.draw_begin(out_, style.userdata);
+    if (style.draw_begin) style.draw_begin(out_, cast(nk_handle)style.userdata);
     nk_draw_progress(out_, *state, style, &bounds, &cursor, value, max);
-    if (style.draw_end) style.draw_end(out_, style.userdata);
+    if (style.draw_end) style.draw_end(out_, cast(nk_handle)style.userdata);
     return prog_value;
 }
 nk_bool nk_progress(nk_context* ctx, nk_size* cur, nk_size max, nk_bool is_modifyable)
@@ -138,7 +141,7 @@ nk_bool nk_progress(nk_context* ctx, nk_size* cur, nk_size max, nk_bool is_modif
     state = nk_widget(&bounds, ctx);
     if (!state) return 0;
 
-    in_ = (state == NK_WIDGET_ROM || layout.flags & NK_WINDOW_ROM) ? 0 : &ctx.input;
+    in_ = (state == NK_WIDGET_ROM || layout.flags & NK_WINDOW_ROM) ? null : &ctx.input;
     old_value = *cur;
     *cur = nk_do_progress(&ctx.last_widget_state, &win.buffer, bounds,
             *cur, max, is_modifyable, &style.progress, in_);

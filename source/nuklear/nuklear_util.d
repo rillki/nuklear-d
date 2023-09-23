@@ -3,8 +3,9 @@ extern(C) @nogc nothrow:
 __gshared:
 
 import nuklear.nuklear_types;
+import nuklear.nuklear_utf8;
 import core.stdc.stdlib;
-import core.stdc.config: c_long;
+import core.stdc.config: c_long, c_ulong;
 
 /* ===============================================================
  *
@@ -32,7 +33,14 @@ pragma(inline, true)
     auto nk_align_ptr(T, M)(T x, M mask) { return nk_uint_to_ptr((nk_ptr_to_uint(cast(nk_byte*)(x) + (mask-1)) & ~(mask-1))); }
     auto nk_align_ptr_back(T, M)(T x, M mask) { return nk_uint_to_ptr((nk_ptr_to_uint(cast(nk_byte*)(x)) & ~(mask-1))); }
     void nk_zero_struct(S)(S s) { nk_zero(&s, s.sizeof); }
-
+    nk_bool nk_is_lower(int c) { return (c >= 'a' && c <= 'z') || (c >= 0xE0 && c <= 0xFF); }
+    nk_bool nk_is_upper(int c){ return (c >= 'A' && c <= 'Z') || (c >= 0xC0 && c <= 0xDF); }
+    int nk_to_upper(int c) { return (c >= 'a' && c <= 'z') ? (c - ('a' - 'A')) : c; }
+    int nk_to_lower(int c) { return (c >= 'A' && c <= 'Z') ? (c - ('a' + 'A')) : c; }
+    auto nk_vec2_sub(T)(T a, T b) { return nk_vec2((a).x - (b).x, (a).y - (b).y); }
+    auto nk_vec2_add(T)(T a, T b) { return nk_vec2((a).x + (b).x, (a).y + (b).y); }
+    auto nk_vec2_len_sqr(T)(T a) { return ((a).x*(a).x+(a).y*(a).y);}
+    auto nk_vec2_muls(A, T)(A a, T t) { return nk_vec2((a).x * (t), (a).y * (t));}
     void nk_zero(void *ptr, nk_size size)
     {
         assert(ptr);
@@ -42,6 +50,19 @@ pragma(inline, true)
     auto nk_container_of(T, string member, P)(P ptr)
     {
         return cast(T*)(cast(char*)ptr - __traits(getMember, T, member).offsetof);
+    }
+
+    float nk_inv_sqrt(float n)
+    {
+        float x2;
+        const float threehalfs = 1.5f;
+        union Conv {nk_uint i; float f;}
+        Conv conv;
+        conv.f = n;
+        x2 = n * 0.5f;
+        conv.i = 0x5f375A84 - (conv.i >> 1);
+        conv.f = conv.f * (threehalfs - (x2 * conv.f * conv.f));
+        return conv.f;
     }
 
     float nk_sin(float x)
@@ -297,7 +318,7 @@ float nk_strtof(const(char)* str, const(char)** endptr)
 {
     float float_value = void;
     double double_value = void;
-    double_value = NK_STRTOD(str, endptr);
+    double_value = nk_strtod(str, endptr);
     float_value = cast(float)double_value;
     return float_value;
 }
@@ -470,7 +491,7 @@ int nk_strmatch_fuzzy_text(const(char)* str, int str_len, const(char)* pattern, 
             /* update best letter in str which may be for a "next" letter or a rematch */
             if (new_score >= best_letter_score) {
                 /* apply penalty for now skipped letter */
-                if (best_letter != 0)
+                if (best_letter != null)
                     score += NK_UNMATCHED_LETTER_PENALTY;
 
                 best_letter = &str[str_iter];
@@ -568,7 +589,7 @@ char* nk_dtoa(char* s, double n)
     int neg = 0;
 
     assert(s);
-    if (!s) return 0;
+    if (!s) return null;
 
     if (n == 0.0) {
         s[0] = '0'; s[1] = '\0';
@@ -667,7 +688,7 @@ version (NK_INCLUDE_STANDARD_VARARGS) {
         alias NK_ARG_FLAG_NUM = nk_arg_flags.NK_ARG_FLAG_NUM;
         alias NK_ARG_FLAG_ZERO = nk_arg_flags.NK_ARG_FLAG_ZERO;
 
-        char[nk_max_NUMBER_BUFFER] number_buffer = void;
+        char[NK_MAX_NUMBER_BUFFER] number_buffer = void;
         nk_arg_type arg_type = NK_ARG_TYPE_DEFAULT;
         int precision = NK_DEFAULT;
         int width = NK_DEFAULT;
@@ -812,7 +833,7 @@ version (NK_INCLUDE_STANDARD_VARARGS) {
                 }
 
                 /* copy string value representation into buffer */
-                num_iter = number_buffer;
+                num_iter = number_buffer.ptr;
                 while (precision && *num_iter && len < buf_size)
                     buf[len++] = *num_iter++;
 
@@ -847,7 +868,7 @@ version (NK_INCLUDE_STANDARD_VARARGS) {
                 do {
                     /* convert decimal number into hex/oct number */
                     int digit = output_format[value % base];
-                    if (num_len < nk_max_NUMBER_BUFFER)
+                    if (num_len < NK_MAX_NUMBER_BUFFER)
                         number_buffer[num_len++] = cast(char)digit;
                     value /= base;
                 } while (value > 0);
@@ -905,11 +926,11 @@ version (NK_INCLUDE_STANDARD_VARARGS) {
                 int padding = 0;
 
                 assert(arg_type == NK_ARG_TYPE_DEFAULT);
-                NK_DTOA(number_buffer.ptr, value);
+                nk_dtoa(number_buffer.ptr, value);
                 num_len = nk_strlen(number_buffer.ptr);
 
                 /* calculate padding */
-                num_iter = number_buffer;
+                num_iter = number_buffer.ptr;
                 while (*num_iter && *num_iter != '.')
                     num_iter++;
 
@@ -928,7 +949,7 @@ version (NK_INCLUDE_STANDARD_VARARGS) {
                 }
 
                 /* copy string value representation into buffer */
-                num_iter = number_buffer;
+                num_iter = number_buffer.ptr;
                 if ((flag & NK_ARG_FLAG_PLUS) && (value >= 0) && (len < buf_size))
                     buf[len++] = '+';
                 else if ((flag & NK_ARG_FLAG_SPACE) && (value >= 0) && (len < buf_size))
@@ -961,7 +982,7 @@ version (NK_INCLUDE_STANDARD_VARARGS) {
             } else {
                 /* Specifier not supported: g,G,e,E,p,z */
                 assert(0 && "specifier is not supported!");
-                return result;
+                // return result;
             }
         }
         buf[(len >= buf_size)?(buf_size-1):len] = 0;
@@ -977,7 +998,7 @@ int nk_strfmt(char* buf, int buf_size, const(char)* fmt, va_list args)
     assert(buf_size);
     if (!buf || !buf_size || !fmt) return 0;
     version (NK_INCLUDE_STANDARD_IO) {
-        result = NK_VSNPRINTF(buf, cast(nk_size)buf_size, fmt, args);
+        result = vsnprintf(buf, cast(nk_size)buf_size, fmt, args);
         result = (result >= buf_size) ? -1: result;
         buf[buf_size-1] = 0;
     } else {
@@ -988,7 +1009,7 @@ int nk_strfmt(char* buf, int buf_size, const(char)* fmt, va_list args)
 
 nk_hash nk_murmur_hash(const(void)* key, int len, nk_hash seed)
 {
-    void NK_ROTL(T)(T x, T r) { return ((x) << (r) | ((x) >> (32 - r))); }
+    auto NK_ROTL(T)(T x, T r) { return ((x) << (r) | ((x) >> (32 - r))); }
 
     nk_uint h1 = seed;
     nk_uint k1;
@@ -1026,7 +1047,9 @@ nk_hash nk_murmur_hash(const(void)* key, int len, nk_hash seed)
     k1 = 0;
     switch (len & 3) {
         case 3: k1 ^= cast(nk_uint)(tail[2] << 16); /* fallthrough */
+            goto case 2;
         case 2: k1 ^= cast(nk_uint)(tail[1] << 8u); /* fallthrough */
+            goto case 1;
         case 1: k1 ^= tail[0];
             k1 *= c1;
             k1 = NK_ROTL(k1,15);
@@ -1049,6 +1072,8 @@ nk_hash nk_murmur_hash(const(void)* key, int len, nk_hash seed)
 }
 
 version (NK_INCLUDE_STANDARD_IO) {
+    import core.stdc.stdio;
+    
     char* nk_file_load(const(char)* path, nk_size* siz, nk_allocator* alloc)
     {
         char* buf = void;
@@ -1059,23 +1084,23 @@ version (NK_INCLUDE_STANDARD_IO) {
         assert(siz);
         assert(alloc);
         if (!path || !siz || !alloc)
-            return 0;
+            return null;
 
         fd = fopen(path, "rb");
-        if (!fd) return 0;
+        if (!fd) return null;
         fseek(fd, 0, SEEK_END);
         ret = ftell(fd);
         if (ret < 0) {
             fclose(fd);
-            return 0;
+            return null;
         }
         *siz = cast(nk_size)ret;
         fseek(fd, 0, SEEK_SET);
-        buf = cast(char*)alloc.alloc(alloc.userdata,0, *siz);
+        buf = cast(char*)alloc.alloc(alloc.userdata, null, *siz);
         assert(buf);
         if (!buf) {
             fclose(fd);
-            return 0;
+            return null;
         }
         *siz = cast(nk_size)fread(buf, 1,*siz, fd);
         fclose(fd);
@@ -1101,7 +1126,7 @@ int nk_text_clamp(const(nk_user_font)* font, const(char)* text, int text_len, fl
     glyph_len = nk_utf_decode(text, &unicode, text_len);
     while (glyph_len && (width < space) && (len < text_len)) {
         len += glyph_len;
-        s = font.width(font.userdata, font.height, text, len);
+        s = font.width(cast(nk_handle)font.userdata, font.height, text, len);
         for (i = 0; i < sep_count; ++i) {
             if (unicode != sep_list[i]) continue;
             sep_width = last_width = width;
@@ -1142,7 +1167,7 @@ nk_vec2 nk_text_calculate_text_bounds(const(nk_user_font)* font, const(char)* be
 
     glyph_len = nk_utf_decode(begin, &unicode, byte_len);
     if (!glyph_len) return text_size;
-    glyph_width = font.width(font.userdata, font.height, begin, glyph_len);
+    glyph_width = font.width(cast(nk_handle)font.userdata, font.height, begin, glyph_len);
 
     *glyphs = 0;
     while ((text_len < byte_len) && glyph_len) {
@@ -1170,7 +1195,7 @@ nk_vec2 nk_text_calculate_text_bounds(const(nk_user_font)* font, const(char)* be
         text_len += glyph_len;
         line_width += cast(float)glyph_width;
         glyph_len = nk_utf_decode(begin + text_len, &unicode, byte_len-text_len);
-        glyph_width = font.width(font.userdata, font.height, begin+text_len, glyph_len);
+        glyph_width = font.width(cast(nk_handle)font.userdata, font.height, begin+text_len, glyph_len);
         continue;
     }
 
@@ -1183,18 +1208,6 @@ nk_vec2 nk_text_calculate_text_bounds(const(nk_user_font)* font, const(char)* be
     if (remaining)
         *remaining = begin+text_len;
     return text_size;
-}
-
-float nk_inv_sqrt(float n)
-{
-    float x2 = void;
-    const(float) threehalfs = 1.5f;
-    union _Conv {nk_uint i = void; float f = void;}_Conv conv = {0};
-    conv.f = n;
-    x2 = n * 0.5f;
-    conv.i = 0x5f375A84 - (conv.i >> 1);
-    conv.f = conv.f * (threehalfs - (x2 * conv.f * conv.f));
-    return conv.f;
 }
 
 nk_uint nk_round_up_pow2(nk_uint v)
@@ -1278,7 +1291,6 @@ nk_rect nk_rect_(float x, float y, float w, float h)
     return r;
 }
 
-pragma(mangle, "nk_recti")
 nk_rect nk_recti_(int x, int y, int w, int h)
 {
     nk_rect r = void;
@@ -1300,7 +1312,7 @@ nk_rect nk_rectv(const(float)* r)
 
 nk_rect nk_rectiv(const(int)* r)
 {
-    return nk_recti(r[0], r[1], r[2], r[3]);
+    return nk_recti_(cast(short)r[0], cast(short)r[1], cast(short)r[2], cast(short)r[3]);
 }
 
 nk_vec2 nk_rect_pos(nk_rect r)

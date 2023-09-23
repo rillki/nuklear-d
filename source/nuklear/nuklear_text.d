@@ -10,6 +10,10 @@ __gshared:
 
 import nuklear.nuklear_types;
 import nuklear.nuklear_util;
+import nuklear.nuklear_panel;
+import nuklear.nuklear_draw;
+import nuklear.nuklear_layout;
+import nuklear.nuklear_color;
 
 void nk_widget_text(nk_command_buffer* o, nk_rect b, const(char)* string, int len, const(nk_text)* t, nk_flags a, const(nk_user_font)* f)
 {
@@ -25,7 +29,7 @@ void nk_widget_text(nk_command_buffer* o, nk_rect b, const(char)* string, int le
     label.y = b.y + t.padding.y;
     label.h = nk_min(f.height, b.h - 2 * t.padding.y);
 
-    text_width = f.width(f.userdata, f.height, cast(const(char)*)string, len);
+    text_width = f.width(cast(nk_handle)f.userdata, f.height, cast(const(char)*)string, len);
     text_width += (2.0f * t.padding.x);
 
     /* align in x-axis */
@@ -80,13 +84,13 @@ void nk_widget_text_wrap(nk_command_buffer* o, nk_rect b, const(char)* string, i
     line.w = b.w - 2 * t.padding.x;
     line.h = 2 * t.padding.y + f.height;
 
-    fitting = nk_text_clamp(f, string, len, line.w, &glyphs, &width, seperator.ptr,NK_LEN(seperator.ptr));
+    fitting = nk_text_clamp(f, string, len, line.w, &glyphs, &width, seperator.ptr, seperator.length);
     while (done < len) {
         if (!fitting || line.y + line.h >= (b.y + b.h)) break;
         nk_widget_text(o, line, &string[done], fitting, &text, NK_TEXT_LEFT, f);
         done += fitting;
         line.y += f.height + 2 * t.padding.y;
-        fitting = nk_text_clamp(f, &string[done], len - done, line.w, &glyphs, &width, seperator.ptr,NK_LEN(seperator.ptr));
+        fitting = nk_text_clamp(f, &string[done], len - done, line.w, &glyphs, &width, seperator.ptr, (seperator.length));
     }
 }
 void nk_text_colored(nk_context* ctx, const(char)* str, int len, nk_flags alignment, nk_color color)
@@ -173,34 +177,34 @@ version (NK_INCLUDE_STANDARD_VARARGS) {
     void nk_labelfv_colored(nk_context* ctx, nk_flags flags, nk_color color, const(char)* fmt, va_list args)
     {
         char[256] buf = void;
-        nk_strfmt(buf.ptr, NK_LEN(buf.ptr), fmt, args);
+        nk_strfmt(buf.ptr, (buf.length), fmt, args);
         nk_label_colored(ctx, buf.ptr, flags, color);
     }
 
     void nk_labelfv_colored_wrap(nk_context* ctx, nk_color color, const(char)* fmt, va_list args)
     {
         char[256] buf = void;
-        nk_strfmt(buf.ptr, NK_LEN(buf.ptr), fmt, args);
+        nk_strfmt(buf.ptr, buf.length, fmt, args);
         nk_label_colored_wrap(ctx, buf.ptr, color);
     }
 
     void nk_labelfv(nk_context* ctx, nk_flags flags, const(char)* fmt, va_list args)
     {
         char[256] buf = void;
-        nk_strfmt(buf.ptr, NK_LEN(buf.ptr), fmt, args);
+        nk_strfmt(buf.ptr, buf.length, fmt, args);
         nk_label(ctx, buf.ptr, flags);
     }
 
     void nk_labelfv_wrap(nk_context* ctx, const(char)* fmt, va_list args)
     {
         char[256] buf = void;
-        nk_strfmt(buf.ptr, NK_LEN(buf.ptr), fmt, args);
+        nk_strfmt(buf.ptr, buf.length, fmt, args);
         nk_label_wrap(ctx, buf.ptr);
     }
 
     void nk_value_bool(nk_context* ctx, const(char)* prefix, int value)
     {
-        nk_labelf(ctx, NK_TEXT_LEFT, "%s: %s", prefix, ((value) ? "true": "false"));
+        nk_labelf(ctx, NK_TEXT_LEFT, "%s: %s", prefix, ((value) ? cast(char*)"true": cast(char*)"false"));
     }
     void nk_value_int(nk_context* ctx, const(char)* prefix, int value)
     {
@@ -233,7 +237,6 @@ version (NK_INCLUDE_STANDARD_VARARGS) {
     }
 }
 
-pragma(mangle, "nk_text")
 void nk_text_(nk_context* ctx, const(char)* str, int len, nk_flags alignment)
 {
     assert(ctx);
@@ -248,7 +251,7 @@ void nk_text_wrap(nk_context* ctx, const(char)* str, int len)
 }
 void nk_label(nk_context* ctx, const(char)* str, nk_flags alignment)
 {
-    nk_text(ctx, str, nk_strlen(str), alignment);
+    nk_text_(ctx, str, nk_strlen(str), alignment);
 }
 void nk_label_colored(nk_context* ctx, const(char)* str, nk_flags align_, nk_color color)
 {

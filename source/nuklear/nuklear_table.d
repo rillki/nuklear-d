@@ -10,12 +10,13 @@ __gshared:
 
 import nuklear.nuklear_types;
 import nuklear.nuklear_util;
+import nuklear.nuklear_page_element;
 
 nk_table* nk_create_table(nk_context* ctx)
 {
     nk_page_element* elem = void;
     elem = nk_create_page_element(ctx);
-    if (!elem) return 0;
+    if (!elem) return null;
     nk_zero_struct(*elem);
     return &elem.data.tbl;
 }
@@ -29,15 +30,15 @@ void nk_push_table(nk_window* win, nk_table* tbl)
 {
     if (!win.tables) {
         win.tables = tbl;
-        tbl.next = 0;
-        tbl.prev = 0;
+        tbl.next = null;
+        tbl.prev = null;
         tbl.size = 0;
         win.table_count = 1;
         return;
     }
     win.tables.prev = tbl;
     tbl.next = win.tables;
-    tbl.prev = 0;
+    tbl.prev = null;
     tbl.size = 0;
     win.tables = tbl;
     win.table_count++;
@@ -50,18 +51,18 @@ void nk_remove_table(nk_window* win, nk_table* tbl)
         tbl.next.prev = tbl.prev;
     if (tbl.prev)
         tbl.prev.next = tbl.next;
-    tbl.next = 0;
-    tbl.prev = 0;
+    tbl.next = null;
+    tbl.prev = null;
 }
 nk_uint* nk_add_value(nk_context* ctx, nk_window* win, nk_hash name, nk_uint value)
 {
     assert(ctx);
     assert(win);
-    if (!win || !ctx) return 0;
+    if (!win || !ctx) return null;
     if (!win.tables || win.tables.size >= NK_VALUE_PAGE_CAPACITY) {
         nk_table* tbl = nk_create_table(ctx);
         assert(tbl);
-        if (!tbl) return 0;
+        if (!tbl) return null;
         nk_push_table(win, tbl);
     }
     win.tables.seq = win.seq;
@@ -83,6 +84,6 @@ nk_uint* nk_find_value(nk_window* win, nk_hash name)
         } size = NK_VALUE_PAGE_CAPACITY;
         iter = iter.next;
     }
-    return 0;
+    return null;
 }
 

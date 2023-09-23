@@ -10,14 +10,16 @@ __gshared:
 
 import nuklear.nuklear_types;
 import nuklear.nuklear_util;
+import nuklear.nuklear_buffer;
+import nuklear.nuklear_utf8;
 
 version (NK_INCLUDE_DEFAULT_ALLOCATOR) {
     void nk_str_init_default(nk_str* str)
     {
         nk_allocator alloc = void;
-        alloc.userdata.ptr = 0;
-        alloc.alloc = nk_malloc;
-        alloc.free = nk_mfree;
+        alloc.userdata.ptr = null;
+        alloc.alloc = &nk_malloc;
+        alloc.free = &nk_mfree;
         nk_buffer_init(&str.buffer, &alloc, 32);
         str.len = 0;
     }
@@ -41,7 +43,7 @@ int nk_str_append_text_char(nk_str* s, const(char)* str, int len)
     if (!s || !str || !len) return 0;
     mem = cast(char*)nk_buffer_alloc(&s.buffer, NK_BUFFER_FRONT, cast(nk_size)len * char.sizeof, 0);
     if (!mem) return 0;
-    NK_MEMCPY(mem, str, cast(nk_size)len * char.sizeof);
+    nk_memcopy(mem, str, cast(nk_size)len * char.sizeof);
     s.len += nk_utf_len(str, len);
     return len;
 }
@@ -86,9 +88,9 @@ int nk_str_append_text_runes(nk_str* str, const(nk_rune)* text, int len)
     assert(str);
     if (!str || !text || !len) return 0;
     for (i = 0; i < len; ++i) {
-        byte_len = nk_utf_encode(text[i], glyph, NK_UTF_SIZE);
+        byte_len = nk_utf_encode(text[i], glyph.ptr, NK_UTF_SIZE);
         if (!byte_len) break;
-        nk_str_append_text_char(str, glyph, byte_len);
+        nk_str_append_text_char(str, glyph.ptr, byte_len);
     }
     return len;
 }
@@ -100,8 +102,8 @@ int nk_str_append_str_runes(nk_str* str, const(nk_rune)* runes)
     assert(str);
     if (!str || !runes) return 0;
     while (runes[i] != '\0') {
-        byte_len = nk_utf_encode(runes[i], glyph, NK_UTF_SIZE);
-        nk_str_append_text_char(str, glyph, byte_len);
+        byte_len = nk_utf_encode(runes[i], glyph.ptr, NK_UTF_SIZE);
+        nk_str_append_text_char(str, glyph.ptr, byte_len);
         i++;
     }
     return i;
@@ -136,7 +138,7 @@ int nk_str_insert_at_char(nk_str* s, int pos, const(char)* str, int len)
     src = nk_ptr_add!char(s.buffer.memory.ptr, pos + (copylen-1));
     for (i = 0; i < copylen; ++i) *dst-- = *src--;
     mem = nk_ptr_add!void(s.buffer.memory.ptr, pos);
-    NK_MEMCPY(mem, str, cast(nk_size)len * char.sizeof);
+    nk_memcopy(mem, str, cast(nk_size)len * char.sizeof);
     s.len = nk_utf_len(cast(char*)s.buffer.memory.ptr, cast(int)s.buffer.allocated);
     return 1;
 }
@@ -206,9 +208,9 @@ int nk_str_insert_text_runes(nk_str* str, int pos, const(nk_rune)* runes, int le
     assert(str);
     if (!str || !runes || !len) return 0;
     for (i = 0; i < len; ++i) {
-        byte_len = nk_utf_encode(runes[i], glyph, NK_UTF_SIZE);
+        byte_len = nk_utf_encode(runes[i], glyph.ptr, NK_UTF_SIZE);
         if (!byte_len) break;
-        nk_str_insert_at_rune(str, pos+i, glyph, byte_len);
+        nk_str_insert_at_rune(str, pos+i, glyph.ptr, byte_len);
     }
     return len;
 }
@@ -220,8 +222,8 @@ int nk_str_insert_str_runes(nk_str* str, int pos, const(nk_rune)* runes)
     assert(str);
     if (!str || !runes) return 0;
     while (runes[i] != '\0') {
-        byte_len = nk_utf_encode(runes[i], glyph, NK_UTF_SIZE);
-        nk_str_insert_at_rune(str, pos+i, glyph, byte_len);
+        byte_len = nk_utf_encode(runes[i], glyph.ptr, NK_UTF_SIZE);
+        nk_str_insert_at_rune(str, pos+i, glyph.ptr, byte_len);
         i++;
     }
     return i;
@@ -265,7 +267,7 @@ void nk_str_delete_chars(nk_str* s, int pos, int len)
         /* memmove */
         char* dst = nk_ptr_add!char(s.buffer.memory.ptr, pos);
         char* src = nk_ptr_add!char(s.buffer.memory.ptr, pos + len);
-        NK_MEMCPY(dst, src, s.buffer.allocated - cast(nk_size)(pos + len));
+        nk_memcopy(dst, src, s.buffer.allocated - cast(nk_size)(pos + len));
         assert((cast(int)s.buffer.allocated - cast(int)len) >= 0);
         s.buffer.allocated -= cast(nk_size)len;
     } else nk_str_remove_chars(s, len);
@@ -282,7 +284,7 @@ void nk_str_delete_runes(nk_str* s, int pos, int len)
     assert(s);
     assert(s.len >= pos + len);
     if (s.len < pos + len)
-        len = NK_CLAMP(0, (s.len - pos), s.len);
+        len = nk_clamp(0, (s.len - pos), s.len);
     if (!len) return;
 
     temp = cast(char*)s.buffer.memory.ptr;
@@ -297,7 +299,7 @@ void nk_str_delete_runes(nk_str* s, int pos, int len)
 char* nk_str_at_char(nk_str* s, int pos)
 {
     assert(s);
-    if (!s || pos > cast(int)s.buffer.allocated) return 0;
+    if (!s || pos > cast(int)s.buffer.allocated) return null;
     return nk_ptr_add!char(s.buffer.memory.ptr, pos);
 }
 char* nk_str_at_rune(nk_str* str, int pos, nk_rune* unicode, int* len)
@@ -312,11 +314,11 @@ char* nk_str_at_rune(nk_str* str, int pos, nk_rune* unicode, int* len)
     assert(unicode);
     assert(len);
 
-    if (!str || !unicode || !len) return 0;
+    if (!str || !unicode || !len) return null;
     if (pos < 0) {
         *unicode = 0;
         *len = 0;
-        return 0;
+        return null;
     }
 
     text = cast(char*)str.buffer.memory.ptr;
@@ -332,13 +334,13 @@ char* nk_str_at_rune(nk_str* str, int pos, nk_rune* unicode, int* len)
         src_len = src_len + glyph_len;
         glyph_len = nk_utf_decode(text + src_len, unicode, text_len - src_len);
     }
-    if (i != pos) return 0;
+    if (i != pos) return null;
     return text + src_len;
 }
 const(char)* nk_str_at_char_const(const(nk_str)* s, int pos)
 {
     assert(s);
-    if (!s || pos > cast(int)s.buffer.allocated) return 0;
+    if (!s || pos > cast(int)s.buffer.allocated) return null;
     return nk_ptr_add!char(s.buffer.memory.ptr, pos);
 }
 const(char)* nk_str_at_const(const(nk_str)* str, int pos, nk_rune* unicode, int* len)
@@ -353,11 +355,11 @@ const(char)* nk_str_at_const(const(nk_str)* str, int pos, nk_rune* unicode, int*
     assert(unicode);
     assert(len);
 
-    if (!str || !unicode || !len) return 0;
+    if (!str || !unicode || !len) return null;
     if (pos < 0) {
         *unicode = 0;
         *len = 0;
-        return 0;
+        return null;
     }
 
     text = cast(char*)str.buffer.memory.ptr;
@@ -373,7 +375,7 @@ const(char)* nk_str_at_const(const(nk_str)* str, int pos, nk_rune* unicode, int*
         src_len = src_len + glyph_len;
         glyph_len = nk_utf_decode(text + src_len, unicode, text_len - src_len);
     }
-    if (i != pos) return 0;
+    if (i != pos) return null;
     return text + src_len;
 }
 nk_rune nk_str_rune_at(const(nk_str)* str, int pos)
@@ -386,13 +388,13 @@ nk_rune nk_str_rune_at(const(nk_str)* str, int pos)
 char* nk_str_get(nk_str* s)
 {
     assert(s);
-    if (!s || !s.len || !s.buffer.allocated) return 0;
+    if (!s || !s.len || !s.buffer.allocated) return null;
     return cast(char*)s.buffer.memory.ptr;
 }
 const(char)* nk_str_get_const(const(nk_str)* s)
 {
     assert(s);
-    if (!s || !s.len || !s.buffer.allocated) return 0;
+    if (!s || !s.len || !s.buffer.allocated) return null;
     return cast(const(char)*)s.buffer.memory.ptr;
 }
 int nk_str_len(nk_str* s)

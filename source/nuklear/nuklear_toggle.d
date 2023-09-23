@@ -10,11 +10,16 @@ __gshared:
 
 import nuklear.nuklear_types;
 import nuklear.nuklear_util;
+import nuklear.nuklear_widget;
+import nuklear.nuklear_draw;
+import nuklear.nuklear_input;
+import nuklear.nuklear_text;
+import nuklear.nuklear_button;
 
 nk_bool nk_toggle_behavior(const(nk_input)* in_, nk_rect select, nk_flags* state, nk_bool active)
 {
     nk_widget_state_reset(state);
-    if (nk_button_behavior(state, select, in_, NK_BUTTON_DEFAULT)) {
+    if (nk_button_behavior_(state, select, in_, NK_BUTTON_DEFAULT)) {
         *state = NK_WIDGET_STATE_ACTIVE;
         active = !active;
     }
@@ -145,14 +150,14 @@ nk_bool nk_do_toggle(nk_flags* state, nk_command_buffer* out_, nk_rect r, nk_boo
 
     /* draw selector */
     if (style.draw_begin)
-        style.draw_begin(out_, style.userdata);
+        style.draw_begin(out_, cast(nk_handle)style.userdata);
     if (type == NK_TOGGLE_CHECK) {
         nk_draw_checkbox(out_, *state, style, *active, &label, &select, &cursor, str, len, font);
     } else {
         nk_draw_option(out_, *state, style, *active, &label, &select, &cursor, str, len, font);
     }
     if (style.draw_end)
-        style.draw_end(out_, style.userdata);
+        style.draw_end(out_, cast(nk_handle)style.userdata);
     return (was_active != *active);
 }
 /*----------------------------------------------------------------
@@ -182,7 +187,7 @@ nk_bool nk_check_text(nk_context* ctx, const(char)* text, int len, nk_bool activ
 
     state = nk_widget(&bounds, ctx);
     if (!state) return active;
-    in_ = (state == NK_WIDGET_ROM || layout.flags & NK_WINDOW_ROM) ? 0 : &ctx.input;
+    in_ = (state == NK_WIDGET_ROM || layout.flags & NK_WINDOW_ROM) ? null : &ctx.input;
     nk_do_toggle(&ctx.last_widget_state, &win.buffer, bounds, &active,
         text, len, NK_TOGGLE_CHECK, &style.checkbox, in_, style.font);
     return active;
@@ -194,7 +199,7 @@ uint nk_check_flags_text(nk_context* ctx, const(char)* text, int len, uint flags
     assert(text);
     if (!ctx || !text) return flags;
     old_active = cast(int)((flags & value) & value);
-    if (nk_check_text(ctx, text, len, old_active))
+    if (nk_check_text(ctx, text, len, cast(nk_bool)old_active))
         flags |= value;
     else flags &= ~value;
     return flags;
@@ -218,7 +223,7 @@ nk_bool nk_checkbox_flags_text(nk_context* ctx, const(char)* text, int len, uint
     assert(flags);
     if (!ctx || !text || !flags) return 0;
 
-    active = cast(int)((*flags & value) & value);
+    active = cast(int)(cast(nk_bool)(*flags & value) & value);
     if (nk_checkbox_text(ctx, text, len, &active)) {
         if (active) *flags |= value;
         else *flags &= ~value;
@@ -268,8 +273,8 @@ nk_bool nk_option_text(nk_context* ctx, const(char)* text, int len, nk_bool is_a
     layout = win.layout;
 
     state = nk_widget(&bounds, ctx);
-    if (!state) return cast(int)state;
-    in_ = (state == NK_WIDGET_ROM || layout.flags & NK_WINDOW_ROM) ? 0 : &ctx.input;
+    if (!state) return cast(nk_bool)state;
+    in_ = (state == NK_WIDGET_ROM || layout.flags & NK_WINDOW_ROM) ? null : &ctx.input;
     nk_do_toggle(&ctx.last_widget_state, &win.buffer, bounds, &is_active,
         text, len, NK_TOGGLE_OPTION, &style.option, in_, style.font);
     return is_active;
@@ -282,7 +287,7 @@ nk_bool nk_radio_text(nk_context* ctx, const(char)* text, int len, nk_bool* acti
     assert(active);
     if (!ctx || !text || !active) return 0;
     old_value = *active;
-    *active = nk_option_text(ctx, text, len, old_value);
+    *active = nk_option_text(ctx, text, len, cast(nk_bool)old_value);
     return old_value != *active;
 }
 nk_bool nk_option_label(nk_context* ctx, const(char)* label, nk_bool active)

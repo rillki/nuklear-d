@@ -10,6 +10,7 @@ __gshared:
 
 import nuklear.nuklear_types;
 import nuklear.nuklear_util;
+import nuklear.nuklear_utf8;
 
 void nk_input_begin(nk_context* ctx)
 {
@@ -112,7 +113,7 @@ void nk_input_glyph(nk_context* ctx, const(nk_glyph) glyph)
     if (!ctx) return;
     in_ = &ctx.input;
 
-    len = nk_utf_decode(glyph, &unicode, NK_UTF_SIZE);
+    len = nk_utf_decode(glyph.ptr, &unicode, NK_UTF_SIZE);
     if (len && ((in_.keyboard.text_len + len) < NK_INPUT_MAX)) {
         nk_utf_encode(unicode, &in_.keyboard.text[in_.keyboard.text_len],
             NK_INPUT_MAX - in_.keyboard.text_len);
@@ -132,7 +133,7 @@ void nk_input_unicode(nk_context* ctx, nk_rune unicode)
     nk_glyph rune = void;
     assert(ctx);
     if (!ctx) return;
-    nk_utf_encode(unicode, rune, NK_UTF_SIZE);
+    nk_utf_encode(unicode, rune.ptr, NK_UTF_SIZE);
     nk_input_glyph(ctx, rune);
 }
 nk_bool nk_input_has_mouse_click(const(nk_input)* i, nk_buttons id)
@@ -194,7 +195,7 @@ nk_bool nk_input_any_mouse_click_in_rect(const(nk_input)* in_, nk_rect b)
     int i = void, down = 0;
     for (i = 0; i < NK_BUTTON_MAX; ++i)
         down = down || nk_input_is_mouse_click_in_rect(in_, cast(nk_buttons)i, b);
-    return down;
+    return cast(nk_bool)down;
 }
 nk_bool nk_input_is_mouse_hovering_rect(const(nk_input)* i, nk_rect rect)
 {

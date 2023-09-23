@@ -10,6 +10,10 @@ __gshared:
 
 import nuklear.nuklear_types;
 import nuklear.nuklear_util;
+import nuklear.nuklear_widget;
+import nuklear.nuklear_input;
+import nuklear.nuklear_draw;
+import nuklear.nuklear_button;
 
 float nk_slider_behavior(nk_flags* state, nk_rect* logical_cursor, nk_rect* visual_cursor, nk_input* in_, nk_rect bounds, float slider_min, float slider_max, float slider_value, float slider_step, float slider_steps)
 {
@@ -29,10 +33,10 @@ float nk_slider_behavior(nk_flags* state, nk_rect* logical_cursor, nk_rect* visu
 
         /* only update value if the next slider step is reached */
         *state = NK_WIDGET_STATE_ACTIVE;
-        if (NK_ABS(d) >= pxstep) {
-            const(float) steps = cast(float)(cast(int)(NK_ABS(d) / pxstep));
+        if (nk_abs(d) >= pxstep) {
+            const(float) steps = cast(float)(cast(int)(nk_abs(d) / pxstep));
             slider_value += (d > 0) ? (slider_step*steps) : -(slider_step*steps);
-            slider_value = NK_CLAMP(slider_min, slider_value, slider_max);
+            slider_value = nk_clamp(slider_min, slider_value, slider_max);
             ratio = (slider_value - slider_min)/slider_step;
             logical_cursor.x = bounds.x + (logical_cursor.w * ratio);
             in_.mouse.buttons[NK_BUTTON_LEFT].clicked_pos.x = logical_cursor.x;
@@ -59,9 +63,9 @@ void nk_draw_slider(nk_command_buffer* out_, nk_flags state, const(nk_style_slid
     nk_color bar_color = void;
     const(nk_style_item)* cursor = void;
 
-    NK_UNUSED(min);
-    NK_UNUSED(max);
-    NK_UNUSED(value);
+    cast(void)(min);
+    cast(void)(max);
+    cast(void)(value);
 
     if (state & NK_WIDGET_STATE_ACTIVED) {
         background = &style.active;
@@ -132,8 +136,8 @@ float nk_do_slider(nk_flags* state, nk_command_buffer* out_, nk_rect bounds, flo
     /* remove padding from slider bounds */
     bounds.x = bounds.x + style.padding.x;
     bounds.y = bounds.y + style.padding.y;
-    bounds.h = NK_MAX(bounds.h, 2*style.padding.y);
-    bounds.w = NK_MAX(bounds.w, 2*style.padding.x + style.cursor_size.x);
+    bounds.h = nk_max(bounds.h, 2*style.padding.y);
+    bounds.w = nk_max(bounds.w, 2*style.padding.x + style.cursor_size.x);
     bounds.w -= 2 * style.padding.x;
     bounds.h -= 2 * style.padding.y;
 
@@ -166,9 +170,9 @@ float nk_do_slider(nk_flags* state, nk_command_buffer* out_, nk_rect bounds, flo
     bounds.w -= style.cursor_size.x;
 
     /* make sure the provided values are correct */
-    slider_max = NK_MAX(min, max);
-    slider_min = NK_MIN(min, max);
-    slider_value = NK_CLAMP(slider_min, val, slider_max);
+    slider_max = nk_max(min, max);
+    slider_min = nk_min(min, max);
+    slider_value = nk_clamp(slider_min, val, slider_max);
     slider_range = slider_max - slider_min;
     slider_steps = slider_range / step;
     cursor_offset = (slider_value - slider_min) / step;
@@ -191,9 +195,9 @@ float nk_do_slider(nk_flags* state, nk_command_buffer* out_, nk_rect bounds, flo
     visual_cursor.x = logical_cursor.x - visual_cursor.w*0.5f;
 
     /* draw slider */
-    if (style.draw_begin) style.draw_begin(out_, style.userdata);
+    if (style.draw_begin) style.draw_begin(out_, cast(nk_handle)style.userdata);
     nk_draw_slider(out_, *state, style, &bounds, &visual_cursor, slider_min, slider_value, slider_max);
-    if (style.draw_end) style.draw_end(out_, style.userdata);
+    if (style.draw_end) style.draw_end(out_, cast(nk_handle)style.userdata);
     return slider_value;
 }
 nk_bool nk_slider_float(nk_context* ctx, float min_value, float* value, float max_value, float value_step)
@@ -213,15 +217,15 @@ nk_bool nk_slider_float(nk_context* ctx, float min_value, float* value, float ma
     assert(ctx.current.layout);
     assert(value);
     if (!ctx || !ctx.current || !ctx.current.layout || !value)
-        return ret;
+        return cast(nk_bool)ret;
 
     win = ctx.current;
     style = &ctx.style;
     layout = win.layout;
 
     state = nk_widget(&bounds, ctx);
-    if (!state) return ret;
-    in_ = (/*state == NK_WIDGET_ROM || */ layout.flags & NK_WINDOW_ROM) ? 0 : &ctx.input;
+    if (!state) return cast(nk_bool)ret;
+    in_ = (/*state == NK_WIDGET_ROM || */ layout.flags & NK_WINDOW_ROM) ? null : &ctx.input;
 
     old_value = *value;
     *value = nk_do_slider(&ctx.last_widget_state, &win.buffer, bounds, min_value,
@@ -244,6 +248,6 @@ nk_bool nk_slider_int(nk_context* ctx, int min, int* val, int max, int step)
     float value = cast(float)*val;
     ret = nk_slider_float(ctx, cast(float)min, &value, cast(float)max, cast(float)step);
     *val =  cast(int)value;
-    return ret;
+    return cast(nk_bool)ret;
 }
 

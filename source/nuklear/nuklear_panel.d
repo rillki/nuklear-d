@@ -10,12 +10,22 @@ __gshared:
 
 import nuklear.nuklear_types;
 import nuklear.nuklear_util;
+import nuklear.nuklear_page_element;
+import nuklear.nuklear_draw;
+import nuklear.nuklear_text;
+import nuklear.nuklear_button;
+import nuklear.nuklear_input;
+import nuklear.nuklear_layout;
+import nuklear.nuklear_color;
+import nuklear.nuklear_scrollbar;
+import nuklear.nuklear_window;
+import nuklear.nuklear_context;
 
 void* nk_create_panel(nk_context* ctx)
 {
     nk_page_element* elem = void;
     elem = nk_create_page_element(ctx);
-    if (!elem) return 0;
+    if (!elem) return null;
     nk_zero_struct(*elem);
     return &elem.data.pan;
 }
@@ -28,7 +38,7 @@ void nk_free_panel(nk_context* ctx, nk_panel* pan)
 nk_bool nk_panel_has_header(nk_flags flags, const(char)* title)
 {
     nk_bool active = 0;
-    active = (flags & (NK_WINDOW_CLOSABLE|NK_WINDOW_MINIMIZABLE));
+    active = cast(bool)(flags & (NK_WINDOW_CLOSABLE|NK_WINDOW_MINIMIZABLE));
     active = active || (flags & NK_WINDOW_TITLE);
     active = active && !(flags & NK_WINDOW_HIDDEN) && title;
     return active;
@@ -91,9 +101,9 @@ nk_bool nk_panel_begin(nk_context* ctx, const(char)* title, nk_panel_type panel_
     nk_vec2 scrollbar_size = void;
     nk_vec2 panel_padding = void;
 
-    NK_ASSERT(ctx);
-    NK_ASSERT(ctx.current);
-    NK_ASSERT(ctx.current.layout);
+    assert(ctx);
+    assert(ctx.current);
+    assert(ctx.current.layout);
     if (!ctx || !ctx.current || !ctx.current.layout) return 0;
     nk_zero(ctx.current.layout, typeof(*ctx.current.layout).sizeof);
     if ((ctx.current.flags & NK_WINDOW_HIDDEN) || (ctx.current.flags & NK_WINDOW_CLOSED)) {
@@ -107,7 +117,7 @@ nk_bool nk_panel_begin(nk_context* ctx, const(char)* title, nk_panel_type panel_
     win = ctx.current;
     layout = win.layout;
     out_ = &win.buffer;
-    in_ = (win.flags & NK_WINDOW_NO_INPUT) ? 0: &ctx.input;
+    in_ = (win.flags & NK_WINDOW_NO_INPUT) ? null: &ctx.input;
 version (NK_INCLUDE_COMMAND_USERDATA) {
     win.buffer.userdata = ctx.userdata;
 }
@@ -163,7 +173,7 @@ version (NK_INCLUDE_COMMAND_USERDATA) {
     nk_layout_reset_min_row_height(ctx);
     layout.row.index = 0;
     layout.row.columns = 0;
-    layout.row.ratio = 0;
+    layout.row.ratio = null;
     layout.row.item_width = 0;
     layout.row.tree_depth = 0;
     layout.row.height = panel_padding.y;
@@ -276,7 +286,7 @@ version (NK_INCLUDE_COMMAND_USERDATA) {
         {/* window header title */
         int text_len = nk_strlen(title);
         nk_rect label = {0,0,0,0};
-        float t = font.width(font.userdata, font.height, title, text_len);
+        float t = font.width(cast(nk_handle)font.userdata, font.height, title, text_len);
         text.padding = nk_vec2(0,0);
 
         label.x = header.x + style.window.header.padding.x;
@@ -284,7 +294,7 @@ version (NK_INCLUDE_COMMAND_USERDATA) {
         label.y = header.y + style.window.header.label_padding.y;
         label.h = font.height + 2 * style.window.header.label_padding.y;
         label.w = t + 2 * style.window.header.spacing.x;
-        label.w = NK_CLAMP(0, label.w, header.x + header.w - label.x);
+        label.w = nk_clamp(0, label.w, header.x + header.w - label.x);
         nk_widget_text(out_, label, cast(const(char)*)title, text_len, &text, NK_TEXT_LEFT, font);}
     }
 
@@ -329,9 +339,9 @@ void nk_panel_end(nk_context* ctx)
     nk_vec2 scrollbar_size = void;
     nk_vec2 panel_padding = void;
 
-    NK_ASSERT(ctx);
-    NK_ASSERT(ctx.current);
-    NK_ASSERT(ctx.current.layout);
+    assert(ctx);
+    assert(ctx.current);
+    assert(ctx.current.layout);
     if (!ctx || !ctx.current || !ctx.current.layout)
         return;
 
@@ -339,7 +349,7 @@ void nk_panel_end(nk_context* ctx)
     layout = window.layout;
     style = &ctx.style;
     out_ = &window.buffer;
-    in_ = (layout.flags & NK_WINDOW_ROM || layout.flags & NK_WINDOW_NO_INPUT) ? 0 :&ctx.input;
+    in_ = (layout.flags & NK_WINDOW_ROM || layout.flags & NK_WINDOW_NO_INPUT) ? null :&ctx.input;
     if (!nk_panel_is_sub(layout.type))
         nk_push_scissor(out_, nk_null_rect);
 
@@ -419,7 +429,7 @@ void nk_panel_end(nk_context* ctx)
             if ((root_window == ctx.active) && layout.has_scrolling) {
                 /* and panel is being hovered and inside clip rect*/
                 if (nk_input_is_mouse_hovering_rect(in_, layout.bounds) &&
-                    NK_INTERSECT(layout.bounds.x, layout.bounds.y, layout.bounds.w, layout.bounds.h,
+                    nk_intersect(layout.bounds.x, layout.bounds.y, layout.bounds.w, layout.bounds.h,
                         root_panel.clip.x, root_panel.clip.y, root_panel.clip.w, root_panel.clip.h))
                 {
                     /* deactivate all parent scrolling */
@@ -610,6 +620,6 @@ void nk_panel_end(nk_context* ctx)
     }
     window.popup.combo_count = 0;
     /* helper to make sure you have a 'nk_tree_push' for every 'nk_tree_pop' */
-    NK_ASSERT(!layout.row.tree_depth);
+    assert(!layout.row.tree_depth);
 }
 

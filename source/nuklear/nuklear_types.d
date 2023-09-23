@@ -2,6 +2,8 @@ module nuklear.nuklear_types;
 
 import nuklear.nuklear_util;
 
+enum NK_PI = 3.141592654f;
+enum NK_DEFAULT = -1;
 enum NK_UNDEFINED = -1.0f;
 enum NK_UTF_INVALID = 0xFFFD;
 enum NK_UTF_SIZE = 4;
@@ -11,6 +13,8 @@ enum NK_SCROLLBAR_HIDING_TIMEOUT = 4.0f;
 enum NK_DEFAULT_COMMAND_BUFFER_SIZE = 4*1024;
 enum NK_BUFFER_DEFAULT_INITIAL_SIZE = 4*1024;
 enum NK_POOL_DEFAULT_CAPACITY = 16;
+enum NK_MAX_FLOAT_PRECISION = 2;
+enum NK_FLOAT_PRECISION = 0.00000000000001;
 
 enum nk_null_rect = nk_rect(-8192.0f, -8192.0f, 16_384, 16_384);
 enum nk_red = nk_color(255,0,0,255);

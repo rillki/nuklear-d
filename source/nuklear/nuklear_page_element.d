@@ -10,6 +10,8 @@ __gshared:
 
 import nuklear.nuklear_types;
 import nuklear.nuklear_util;
+import nuklear.nuklear_pool;
+import nuklear.nuklear_buffer;
 
 nk_page_element* nk_create_page_element(nk_context* ctx)
 {
@@ -22,18 +24,18 @@ nk_page_element* nk_create_page_element(nk_context* ctx)
         /* allocate page element from memory pool */
         elem = nk_pool_alloc(&ctx.pool);
         assert(elem);
-        if (!elem) return 0;
+        if (!elem) return null;
     } else {
         /* allocate new page element from back of fixed size memory buffer */
-        enum nk_size = nk_page_element.sizeof;
-        enum nk_size = nk_page_element.alignof;
+        enum nk_size size = nk_page_element.sizeof;
+        enum nk_size align_ = nk_page_element.alignof;
         elem = cast(nk_page_element*)nk_buffer_alloc(&ctx.memory, NK_BUFFER_BACK, size, align_);
         assert(elem);
-        if (!elem) return 0;
+        if (!elem) return null;
     }
     nk_zero_struct(*elem);
-    elem.next = 0;
-    elem.prev = 0;
+    elem.next = null;
+    elem.prev = null;
     return elem;
 }
 void nk_link_page_element_into_freelist(nk_context* ctx, nk_page_element* elem)

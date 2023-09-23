@@ -11,25 +11,6 @@ enum
    STBRP_HEURISTIC_Skyline_BF_sortHeight
 }
 
-struct stbrp_node
-{
-   stbrp_coord x, y;
-   stbrp_node* next;
-}
-
-struct stbrp_context
-{
-   int width;
-   int height;
-   int align_;
-   int init_mode;
-   int heuristic;
-   int num_nodes;
-   stbrp_node* active_head;
-   stbrp_node* free_head;
-   stbrp_node[2] extra;
-}
-
 enum
 {
    STBRP__INIT_skyline = 1
@@ -264,7 +245,7 @@ int rect_original_order(const(void)* a, const(void)* b)
    return (p.was_packed < q.was_packed) ? -1 : (p.was_packed > q.was_packed);
 }
 
-int stbrp_pack_rects(stbrp_context* context, stbrp_rect* rects, int num_rects)
+int stbrp_pack_rects_rp(stbrp_context* context, stbrp_rect* rects, int num_rects)
 {
    int i = void, all_rects_packed = 1;
 

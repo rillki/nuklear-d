@@ -10,6 +10,9 @@ __gshared:
 
 import nuklear.nuklear_types;
 import nuklear.nuklear_util;
+import nuklear.nuklear_popup;
+import nuklear.nuklear_layout;
+import nuklear.nuklear_text;
 
 nk_bool nk_tooltip_begin(nk_context* ctx, float width)
 {
@@ -46,7 +49,7 @@ nk_bool nk_tooltip_begin(nk_context* ctx, float width)
     if (ret) win.layout.flags &= ~cast(nk_flags)NK_WINDOW_ROM;
     win.popup.type = NK_PANEL_TOOLTIP;
     ctx.current.layout.type = NK_PANEL_TOOLTIP;
-    return ret;
+    return cast(nk_bool)ret;
 }
 
 void nk_tooltip_end(nk_context* ctx)
@@ -80,7 +83,7 @@ void nk_tooltip(nk_context* ctx, const(char)* text)
 
     /* calculate size of the text and tooltip */
     text_len = nk_strlen(text);
-    text_width = style.font.width(style.font.userdata,
+    text_width = style.font.width(cast(nk_handle)style.font.userdata,
                     style.font.height, text, text_len);
     text_width += (4 * padding.x);
     text_height = (style.font.height + 2 * padding.y);
@@ -88,7 +91,7 @@ void nk_tooltip(nk_context* ctx, const(char)* text)
     /* execute tooltip and fill with text */
     if (nk_tooltip_begin(ctx, cast(float)text_width)) {
         nk_layout_row_dynamic(ctx, cast(float)text_height, 1);
-        nk_text(ctx, text, text_len, NK_TEXT_LEFT);
+        nk_text_(ctx, text, text_len, NK_TEXT_LEFT);
         nk_tooltip_end(ctx);
     }
 }
@@ -104,7 +107,7 @@ version (NK_INCLUDE_STANDARD_VARARGS) {
     void nk_tooltipfv(nk_context* ctx, const(char)* fmt, va_list args)
     {
         char[256] buf = void;
-        nk_strfmt(buf.ptr, NK_LEN(buf.ptr), fmt, args);
+        nk_strfmt(buf.ptr, buf.length, fmt, args);
         nk_tooltip(ctx, buf.ptr);
     }
 }

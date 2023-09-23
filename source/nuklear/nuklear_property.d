@@ -10,6 +10,15 @@ __gshared:
 
 import nuklear.nuklear_types;
 import nuklear.nuklear_util;
+import nuklear.nuklear_input;
+import nuklear.nuklear_button;
+import nuklear.nuklear_widget;
+import nuklear.nuklear_text;
+import nuklear.nuklear_draw;
+import nuklear.nuklear_color;
+import nuklear.nuklear_edit;
+import nuklear.nuklear_utf8;
+import nuklear.nuklear_text_editor;
 
 void nk_drag_behavior(nk_flags* state, const(nk_input)* in_, nk_rect drag, nk_property_variant* variant, float inc_per_pixel)
 {
@@ -51,7 +60,7 @@ void nk_property_behavior(nk_flags* ws, const(nk_input)* in_, nk_rect property, 
 {
     nk_widget_state_reset(ws);
     if (in_ && *state == NK_PROPERTY_DEFAULT) {
-        if (nk_button_behavior(ws, edit, in_, NK_BUTTON_DEFAULT))
+        if (nk_button_behavior_(ws, edit, in_, NK_BUTTON_DEFAULT))
             *state = NK_PROPERTY_EDIT;
         else if (nk_input_is_mouse_click_down_in_rect(in_, NK_BUTTON_LEFT, label, nk_true))
             *state = NK_PROPERTY_DRAG;
@@ -104,8 +113,8 @@ void nk_draw_property(nk_command_buffer* out_, const(nk_style_property)* style, 
 void nk_do_property(nk_flags* ws, nk_command_buffer* out_, nk_rect property, const(char)* name, nk_property_variant* variant, float inc_per_pixel, char* buffer, int* len, int* state, int* cursor, int* select_begin, int* select_end, const(nk_style_property)* style, nk_property_filter filter, nk_input* in_, const(nk_user_font)* font, nk_text_edit* text_edit, nk_button_behavior behavior)
 {
     const(nk_plugin_filter)[2] filters = [
-        nk_filter_decimal,
-        nk_filter_float
+        &nk_filter_decimal,
+        &nk_filter_float
     ];
     nk_bool active = void, old = void;
     int num_len = 0, name_len = void;
@@ -129,7 +138,7 @@ void nk_do_property(nk_flags* ws, nk_command_buffer* out_, nk_rect property, con
 
     /* text label */
     name_len = nk_strlen(name);
-    size = font.width(font.userdata, font.height, name, name_len);
+    size = font.width(cast(nk_handle)font.userdata, font.height, name, name_len);
     label.x = left.x + left.w + style.padding.x;
     label.w = cast(float)size + 2 * style.padding.x;
     label.y = property.y + style.border + style.padding.y;
@@ -143,7 +152,7 @@ void nk_do_property(nk_flags* ws, nk_command_buffer* out_, nk_rect property, con
 
     /* edit */
     if (*state == NK_PROPERTY_EDIT) {
-        size = font.width(font.userdata, font.height, buffer, *len);
+        size = font.width(cast(nk_handle)font.userdata, font.height, buffer, *len);
         size += style.edit.cursor_size;
         length = len;
         dst = buffer;
@@ -155,16 +164,16 @@ void nk_do_property(nk_flags* ws, nk_command_buffer* out_, nk_rect property, con
             num_len = nk_strlen(string.ptr);
             break;
         case NK_PROPERTY_FLOAT:
-            NK_DTOA(string.ptr, cast(double)variant.value.f);
+            nk_dtoa(string.ptr, cast(double)variant.value.f);
             num_len = nk_string_float_limit(string.ptr, NK_MAX_FLOAT_PRECISION);
             break;
         case NK_PROPERTY_DOUBLE:
-            NK_DTOA(string.ptr, variant.value.d);
+            nk_dtoa(string.ptr, variant.value.d);
             num_len = nk_string_float_limit(string.ptr, NK_MAX_FLOAT_PRECISION);
             break;
         }
-        size = font.width(font.userdata, font.height, string.ptr, num_len);
-        dst = string;
+        size = font.width(cast(nk_handle)font.userdata, font.height, string.ptr, num_len);
+        dst = string.ptr;
         length = &num_len;
     }
 
@@ -185,9 +194,9 @@ void nk_do_property(nk_flags* ws, nk_command_buffer* out_, nk_rect property, con
     nk_property_behavior(ws, in_, property, label, edit, empty, state, variant, inc_per_pixel);
 
     /* draw property */
-    if (style.draw_begin) style.draw_begin(out_, style.userdata);
+    if (style.draw_begin) style.draw_begin(out_, cast(nk_handle)style.userdata);
     nk_draw_property(out_, style, &property, &label, *ws, name, name_len, font);
-    if (style.draw_end) style.draw_end(out_, style.userdata);
+    if (style.draw_end) style.draw_end(out_, cast(nk_handle)style.userdata);
 
     /* execute right button  */
     if (nk_do_button_symbol(ws, out_, left, style.sym_left, behavior, &style.dec_button, in_, font)) {
@@ -215,7 +224,7 @@ void nk_do_property(nk_flags* ws, nk_command_buffer* out_, nk_rect property, con
     }
     if (old != NK_PROPERTY_EDIT && (*state == NK_PROPERTY_EDIT)) {
         /* property has been activated so setup buffer */
-        nk_memcopy(buffer, dst, (nk_size)*length);
+        nk_memcopy(buffer, dst, cast(nk_size)(*length));
         *cursor = nk_utf_len(buffer, *length);
         *len = *length;
         length = len;
@@ -230,13 +239,13 @@ void nk_do_property(nk_flags* ws, nk_command_buffer* out_, nk_rect property, con
     text_edit.cursor = nk_clamp(0, *cursor, *length);
     text_edit.select_start = nk_clamp(0,*select_begin, *length);
     text_edit.select_end = nk_clamp(0,*select_end, *length);
-    text_edit.string.buffer.allocated = (nk_size)*length;
+    text_edit.string.buffer.allocated = cast(nk_size)*length;
     text_edit.string.buffer.memory.size = NK_MAX_NUMBER_BUFFER;
     text_edit.string.buffer.memory.ptr = dst;
     text_edit.string.buffer.size = NK_MAX_NUMBER_BUFFER;
     text_edit.mode = NK_TEXT_EDIT_MODE_INSERT;
     nk_do_edit(ws, out_, edit, NK_EDIT_FIELD|NK_EDIT_AUTO_SELECT,
-        filters[filter], text_edit, &style.edit, (*state == NK_PROPERTY_EDIT) ? in_: 0, font);
+        filters[filter], text_edit, &style.edit, (*state == NK_PROPERTY_EDIT) ? in_: null, font);
 
     *length = text_edit.string.len;
     *cursor = text_edit.cursor;
@@ -252,17 +261,17 @@ void nk_do_property(nk_flags* ws, nk_command_buffer* out_, nk_rect property, con
         switch (variant.kind) {
         default: break;
         case NK_PROPERTY_INT:
-            variant.value.i = nk_strtoi(buffer, 0);
+            variant.value.i = nk_strtoi(buffer, null);
             variant.value.i = nk_clamp(variant.min_value.i, variant.value.i, variant.max_value.i);
             break;
         case NK_PROPERTY_FLOAT:
             nk_string_float_limit(buffer, NK_MAX_FLOAT_PRECISION);
-            variant.value.f = nk_strtof(buffer, 0);
+            variant.value.f = nk_strtof(buffer, null);
             variant.value.f = nk_clamp(variant.min_value.f, variant.value.f, variant.max_value.f);
             break;
         case NK_PROPERTY_DOUBLE:
             nk_string_float_limit(buffer, NK_MAX_FLOAT_PRECISION);
-            variant.value.d = nk_strtod(buffer, 0);
+            variant.value.d = nk_strtod(buffer, null);
             variant.value.d = nk_clamp(variant.min_value.d, variant.value.d, variant.max_value.d);
             break;
         }
@@ -344,14 +353,14 @@ void nk_property(nk_context* ctx, const(char)* name, nk_property_variant* varian
 
     /* check if property is currently hot item */
     if (win.property.active && hash == win.property.name) {
-        buffer = win.property.buffer;
+        buffer = win.property.buffer.ptr;
         len = &win.property.length;
         cursor = &win.property.cursor;
         state = &win.property.state;
         select_begin = &win.property.select_start;
         select_end = &win.property.select_end;
     } else {
-        buffer = dummy_buffer;
+        buffer = dummy_buffer.ptr;
         len = &dummy_length;
         cursor = &dummy_cursor;
         state = &dummy_state;
@@ -363,7 +372,7 @@ void nk_property(nk_context* ctx, const(char)* name, nk_property_variant* varian
     old_state = *state;
     ctx.text_edit.clip = ctx.clip;
     in_ = ((s == NK_WIDGET_ROM && !win.property.active) ||
-        layout.flags & NK_WINDOW_ROM) ? 0 : &ctx.input;
+        layout.flags & NK_WINDOW_ROM) ? null : &ctx.input;
     nk_do_property(&ctx.last_widget_state, &win.buffer, bounds, name,
         variant, inc_per_pixel, buffer, len, state, cursor, select_begin,
         select_end, &style.property, filter, in_, style.font, &ctx.text_edit,
@@ -372,7 +381,7 @@ void nk_property(nk_context* ctx, const(char)* name, nk_property_variant* varian
     if (in_ && *state != NK_PROPERTY_DEFAULT && !win.property.active) {
         /* current property is now hot */
         win.property.active = 1;
-        nk_memcopy(win.property.buffer, buffer, (nk_size)*len);
+        nk_memcopy(win.property.buffer.ptr, buffer, cast(nk_size)*len);
         win.property.length = *len;
         win.property.cursor = *cursor;
         win.property.state = *state;

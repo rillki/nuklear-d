@@ -10,6 +10,9 @@ __gshared:
 
 import nuklear.nuklear_types;
 import nuklear.nuklear_util;
+import nuklear.nuklear_string;
+import nuklear.nuklear_text_editor;
+import nuklear.nuklear_utf8;
 
 /* stb_textedit.h - v1.8  - public domain - Sean Barrett */
 struct nk_text_find {
@@ -36,7 +39,7 @@ float nk_textedit_get_width(const(nk_text_edit)* edit, int line_start, int char_
     int len = 0;
     nk_rune unicode = 0;
     const(char)* str = nk_str_at_const(&edit.string, line_start + char_id, &unicode, &len);
-    return font.width(font.userdata, font.height, str, len);
+    return font.width(cast(nk_handle)font.userdata, font.height, str, len);
 }
 void nk_textedit_layout_row(nk_text_edit_row* r, nk_text_edit* edit, int line_start_id, float row_height, const(nk_user_font)* font)
 {
@@ -48,7 +51,7 @@ void nk_textedit_layout_row(nk_text_edit_row* r, nk_text_edit* edit, int line_st
     const(char)* end = nk_str_get_const(&edit.string) + len;
     const(char)* text = nk_str_at_const(&edit.string, line_start_id, &unicode, &l);
     const(nk_vec2) size = nk_text_calculate_text_bounds(font,
-        text, cast(int)(end - text), row_height, &remaining, 0, &glyphs, NK_STOP_ON_NEW_LINE);
+        text, cast(int)(end - text), row_height, &remaining, null, &glyphs, NK_STOP_ON_NEW_LINE);
 
     r.x0 = 0.0f;
     r.x1 = size.x;
@@ -337,8 +340,8 @@ void nk_textedit_text(nk_text_edit* state, const(char)* text, int total_len)
     int glyph_len = void;
     int text_len = 0;
 
-    NK_ASSERT(state);
-    NK_ASSERT(text);
+    assert(state);
+    assert(text);
     if (!text || !total_len || state.mode == NK_TEXT_EDIT_MODE_VIEW) return;
 
     glyph_len = nk_utf_decode(text, &unicode, total_len);
@@ -370,7 +373,7 @@ void nk_textedit_text(nk_text_edit* state, const(char)* text, int total_len)
                                         text+text_len, 1))
             {
                 nk_textedit_makeundo_insert(state, state.cursor, 1);
-                state.cursor = NK_MIN(state.cursor + 1, state.string.len);
+                state.cursor = nk_min(state.cursor + 1, state.string.len);
                 state.has_preferred_x = 0;
             }
         }
@@ -701,7 +704,7 @@ void nk_textedit_discard_undo(nk_text_undo_state* state)
             int n = state.undo_rec[0].insert_length, i = void;
             /* delete n characters from all other records */
             state.undo_char_point = cast(short)(state.undo_char_point - n);
-            NK_MEMCPY(state.undo_char, state.undo_char + n,
+            nk_memcopy(state.undo_char.ptr, state.undo_char.ptr + n,
                 cast(nk_size)state.undo_char_point*nk_rune.sizeof);
             for (i=0; i < state.undo_point; ++i) {
                 if (state.undo_rec[i].char_storage >= 0)
@@ -710,7 +713,7 @@ void nk_textedit_discard_undo(nk_text_undo_state* state)
             }
         }
         --state.undo_point;
-        NK_MEMCPY(state.undo_rec, state.undo_rec+1,
+        nk_memcopy(state.undo_rec.ptr, state.undo_rec.ptr+1,
             cast(nk_size)(cast(nk_size)state.undo_point * typeof(state.undo_rec[0]).sizeof));
     }
 }
@@ -729,8 +732,8 @@ void nk_textedit_discard_redo(nk_text_undo_state* state)
             /* delete n characters from all other records */
             state.redo_char_point = cast(short)(state.redo_char_point + n);
             num = cast(nk_size)(NK_TEXTEDIT_UNDOCHARCOUNT - state.redo_char_point);
-            NK_MEMCPY(state.undo_char + state.redo_char_point,
-                state.undo_char + state.redo_char_point-n, num * char.sizeof);
+            nk_memcopy(state.undo_char.ptr + state.redo_char_point,
+                state.undo_char.ptr + state.redo_char_point-n, num * char.sizeof);
             for (i = state.redo_point; i < k; ++i) {
                 if (state.undo_rec[i].char_storage >= 0) {
                     state.undo_rec[i].char_storage = cast(short)
@@ -740,8 +743,8 @@ void nk_textedit_discard_redo(nk_text_undo_state* state)
         }
         ++state.redo_point;
         num = cast(nk_size)(NK_TEXTEDIT_UNDOSTATECOUNT - state.redo_point);
-        if (num) NK_MEMCPY(state.undo_rec + state.redo_point-1,
-            state.undo_rec + state.redo_point, num * typeof(state.undo_rec[0]).sizeof);
+        if (num) nk_memcopy(state.undo_rec.ptr + state.redo_point-1,
+            state.undo_rec.ptr + state.redo_point, num * typeof(state.undo_rec[0]).sizeof);
     }
 }
 nk_text_undo_record* nk_textedit_create_undo_record(nk_text_undo_state* state, int numchars)
@@ -759,7 +762,7 @@ nk_text_undo_record* nk_textedit_create_undo_record(nk_text_undo_state* state, i
     if (numchars > NK_TEXTEDIT_UNDOCHARCOUNT) {
         state.undo_point = 0;
         state.undo_char_point = 0;
-        return 0;
+        return null;
     }
 
     /* if we don't have enough free characters in the buffer,
@@ -771,8 +774,8 @@ nk_text_undo_record* nk_textedit_create_undo_record(nk_text_undo_state* state, i
 nk_rune* nk_textedit_createundo(nk_text_undo_state* state, int pos, int insert_len, int delete_len)
 {
     nk_text_undo_record* r = nk_textedit_create_undo_record(state, insert_len);
-    if (r == 0)
-        return 0;
+    if (r == null)
+        return null;
 
     r.where = pos;
     r.insert_length = cast(short) insert_len;
@@ -780,7 +783,7 @@ nk_rune* nk_textedit_createundo(nk_text_undo_state* state, int pos, int insert_l
 
     if (insert_len == 0) {
         r.char_storage = -1;
-        return 0;
+        return null;
     } else {
         r.char_storage = state.undo_char_point;
         state.undo_char_point = cast(short)(state.undo_char_point +  insert_len);
@@ -943,41 +946,41 @@ void nk_textedit_clear_state(nk_text_edit* state, nk_text_edit_type type, nk_plu
 }
 void nk_textedit_init_fixed(nk_text_edit* state, void* memory, nk_size size)
 {
-    NK_ASSERT(state);
-    NK_ASSERT(memory);
+    assert(state);
+    assert(memory);
     if (!state || !memory || !size) return;
-    NK_MEMSET(state, 0, nk_text_edit.sizeof);
-    nk_textedit_clear_state(state, NK_TEXT_EDIT_SINGLE_LINE, 0);
+    nk_memset(state, 0, nk_text_edit.sizeof);
+    nk_textedit_clear_state(state, NK_TEXT_EDIT_SINGLE_LINE, null);
     nk_str_init_fixed(&state.string, memory, size);
 }
 void nk_textedit_init(nk_text_edit* state, nk_allocator* alloc, nk_size size)
 {
-    NK_ASSERT(state);
-    NK_ASSERT(alloc);
+    assert(state);
+    assert(alloc);
     if (!state || !alloc) return;
-    NK_MEMSET(state, 0, nk_text_edit.sizeof);
-    nk_textedit_clear_state(state, NK_TEXT_EDIT_SINGLE_LINE, 0);
+    nk_memset(state, 0, nk_text_edit.sizeof);
+    nk_textedit_clear_state(state, NK_TEXT_EDIT_SINGLE_LINE, null);
     nk_str_init(&state.string, alloc, size);
 }
 version (NK_INCLUDE_DEFAULT_ALLOCATOR) {
 void nk_textedit_init_default(nk_text_edit* state)
 {
-    NK_ASSERT(state);
+    assert(state);
     if (!state) return;
-    NK_MEMSET(state, 0, nk_text_edit.sizeof);
-    nk_textedit_clear_state(state, NK_TEXT_EDIT_SINGLE_LINE, 0);
+    nk_memset(state, 0, nk_text_edit.sizeof);
+    nk_textedit_clear_state(state, NK_TEXT_EDIT_SINGLE_LINE, null);
     nk_str_init_default(&state.string);
 }
 }
 void nk_textedit_select_all(nk_text_edit* state)
 {
-    NK_ASSERT(state);
+    assert(state);
     state.select_start = 0;
     state.select_end = state.string.len;
 }
 void nk_textedit_free(nk_text_edit* state)
 {
-    NK_ASSERT(state);
+    assert(state);
     if (!state) return;
     nk_str_free(&state.string);
 }

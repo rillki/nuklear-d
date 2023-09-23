@@ -5,6 +5,8 @@ __gshared:
 import nuklear.nuklear_types;
 import nuklear.nuklear_util;
 import nuklear.nuklear_color;
+import nuklear.nuklear_image;
+import nuklear.nuklear_layout;
 
 enum nk_color[NK_COLOR_COUNT] nk_default_color_style = [
     NK_COLOR_TEXT:  nk_rgba(70, 70, 70, 255),
@@ -672,13 +674,13 @@ nk_bool nk_style_push_font(nk_context* ctx, const(nk_user_font)* font)
     if (!ctx) return 0;
 
     font_stack = &ctx.stacks.fonts;
-    assert(font_stack.head < cast(int)NK_LEN(font_stack.elements));
-    if (font_stack.head >= cast(int)NK_LEN(font_stack.elements))
+    assert(font_stack.head < cast(int)font_stack.elements.length);
+    if (font_stack.head >= cast(int)font_stack.elements.length)
         return 0;
 
     element = &font_stack.elements[font_stack.head++];
-    element.address = &ctx.style.font;
-    element.old_value = ctx.style.font;
+    element.address = cast(nk_user_font**)&ctx.style.font;
+    element.old_value = cast(nk_user_font*)ctx.style.font;
     ctx.style.font = font;
     return 1;
 }
@@ -700,57 +702,57 @@ nk_bool nk_style_pop_font(nk_context* ctx)
     return 1;
 }
 
-template NK_STYLE_PUSH_IMPLEMENATION(string prefix, string type, string stack)
-{
-    const char[] NK_STYLE_PUSH_IMPLEMENATION = "nk_bool nk_style_push_" 
-        ~ type ~ "(nk_context *ctx," ~ prefix ~ "_" ~ type ~ " *address, " ~ prefix ~ "_" ~ type ~ " value)
-        {
-            nk_config_stack_" ~ type ~ " * type_stack;
-            nk_config_stack_" ~ type ~ "_element *element;
-            assert(ctx);
-            if (!ctx) return 0;
-            type_stack = &ctx.stacks.stack;
-            assert(type_stack.head < cast(int)type_stack.elements.length);
-            if (type_stack.head >= cast(int)type_stack.elements.length)
-                return 0;
-            element = &type_stack.elements[type_stack.head++];
-            element.address = address;
-            element.old_value = *address;
-            *address = value;
-            return 1;
-        }";
-}
+// template NK_STYLE_PUSH_IMPLEMENATION(string prefix, string type, string stack)
+// {
+//     const char[] NK_STYLE_PUSH_IMPLEMENATION = "nk_bool nk_style_push_" 
+//         ~ type ~ "(nk_context *ctx," ~ prefix ~ "_" ~ type ~ " *address, " ~ prefix ~ "_" ~ type ~ " value)
+//         {
+//             nk_config_stack_" ~ type ~ " * type_stack;
+//             nk_config_stack_" ~ type ~ "_element *element;
+//             assert(ctx);
+//             if (!ctx) return 0;
+//             type_stack = &ctx.stacks.stack;
+//             assert(type_stack.head < cast(int)type_stack.elements.length);
+//             if (type_stack.head >= cast(int)type_stack.elements.length)
+//                 return 0;
+//             element = &type_stack.elements[type_stack.head++];
+//             element.address = address;
+//             element.old_value = *address;
+//             *address = value;
+//             return 1;
+//         }";
+// }
 
-mixin(NK_STYLE_PUSH_IMPLEMENATION!("nk", "style_item", "style_items"));
-mixin(NK_STYLE_PUSH_IMPLEMENATION!("nk", "float", "floats"));
-mixin(NK_STYLE_PUSH_IMPLEMENATION!("nk", "vec2", "vectors"));
-mixin(NK_STYLE_PUSH_IMPLEMENATION!("nk", "flags", "flags"));
-mixin(NK_STYLE_PUSH_IMPLEMENATION!("nk", "color", "colors"));
+// mixin(NK_STYLE_PUSH_IMPLEMENATION!("nk", "style_item", "style_items"));
+// mixin(NK_STYLE_PUSH_IMPLEMENATION!("nk", "float", "floats"));
+// mixin(NK_STYLE_PUSH_IMPLEMENATION!("nk", "vec2", "vectors"));
+// mixin(NK_STYLE_PUSH_IMPLEMENATION!("nk", "flags", "flags"));
+// mixin(NK_STYLE_PUSH_IMPLEMENATION!("nk", "color", "colors"));
 
-template NK_STYLE_POP_IMPLEMENATION(string type, string stack)
-{
-    const char[] NK_STYLE_POP_IMPLEMENATION = 
-        "nk_bool nk_style_pop_" ~ type ~ "(nk_context *ctx)
-        {
-            nk_config_stack_" ~ type ~ " *type_stack;
-            nk_config_stack_" ~ type ~ "_element *element;
-            assert(ctx);
-            if (!ctx) return 0;
-            type_stack = &ctx.stacks.stack;
-            assert(type_stack.head > 0);
-            if (type_stack.head < 1)
-                return 0;
-            element = &type_stack.elements[--type_stack.head];
-            *element.address = element.old_value;
-            return 1;
-        }";
-}
+// template NK_STYLE_POP_IMPLEMENATION(string type, string stack)
+// {
+//     const char[] NK_STYLE_POP_IMPLEMENATION = 
+//         "nk_bool nk_style_pop_" ~ type ~ "(nk_context *ctx)
+//         {
+//             nk_config_stack_" ~ type ~ " *type_stack;
+//             nk_config_stack_" ~ type ~ "_element *element;
+//             assert(ctx);
+//             if (!ctx) return 0;
+//             type_stack = &ctx.stacks.stack;
+//             assert(type_stack.head > 0);
+//             if (type_stack.head < 1)
+//                 return 0;
+//             element = &type_stack.elements[--type_stack.head];
+//             *element.address = element.old_value;
+//             return 1;
+//         }";
+// }
 
-mixin(NK_STYLE_POP_IMPLEMENATION!("style_item", "style_items"));
-mixin(NK_STYLE_POP_IMPLEMENATION!("float","floats"));
-mixin(NK_STYLE_POP_IMPLEMENATION!("vec2", "vectors"));
-mixin(NK_STYLE_POP_IMPLEMENATION!("flags","flags"));
-mixin(NK_STYLE_POP_IMPLEMENATION!("color","colors"));
+// mixin(NK_STYLE_POP_IMPLEMENATION!("style_item", "style_items"));
+// mixin(NK_STYLE_POP_IMPLEMENATION!("float","floats"));
+// mixin(NK_STYLE_POP_IMPLEMENATION!("vec2", "vectors"));
+// mixin(NK_STYLE_POP_IMPLEMENATION!("flags","flags"));
+// mixin(NK_STYLE_POP_IMPLEMENATION!("color","colors"));
 
 nk_bool nk_style_set_cursor(nk_context* ctx, nk_style_cursor c)
 {

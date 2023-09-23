@@ -4,6 +4,10 @@ __gshared:
 
 import nuklear.nuklear_types;
 import nuklear.nuklear_util;
+import nuklear.nuklear_utf8;
+import nuklear.nuklear_image;
+
+import core.stdc.config: c_long, c_ulong;
 
 version (NK_INCLUDE_FONT_BAKING) {
 
@@ -51,6 +55,27 @@ version (NK_INCLUDE_FONT_BAKING) {
     enum nk_size nk_char_align = stbtt_packedchar.alignof;
     enum nk_size nk_build_align = nk_font_bake_data.alignof;
     enum nk_size nk_baker_align = nk_font_baker.alignof;
+
+    nk_font_config nk_font_config_(float pixel_height)
+    {
+        nk_font_config cfg;
+        nk_zero_struct(cfg);
+        cfg.ttf_blob = null;
+        cfg.ttf_size = 0;
+        cfg.ttf_data_owned_by_atlas = 0;
+        cfg.size = pixel_height;
+        cfg.oversample_h = 3;
+        cfg.oversample_v = 1;
+        cfg.pixel_snap = 0;
+        cfg.coord_type = NK_COORD_UV;
+        cfg.spacing = nk_vec2(0,0);
+        cfg.range = nk_font_default_glyph_ranges();
+        cfg.merge_mode = 0;
+        cfg.fallback_glyph = '?';
+        cfg.font = null;
+        cfg.n = null;
+        return cfg;
+    }
 
     int nk_range_count(const(nk_rune)* range)
     {
@@ -151,7 +176,7 @@ version (NK_INCLUDE_FONT_BAKING) {
     nk_font_baker* nk_font_baker_(void* memory, int glyph_count, int count, nk_allocator* alloc)
     {
         nk_font_baker* baker = void;
-        if (!memory) return 0;
+        if (!memory) return null;
         /* setup baker inside a memory block  */
         baker = cast(nk_font_baker*)nk_align_ptr(memory, nk_baker_align);
         baker.build = cast(nk_font_bake_data*)nk_align_ptr((baker + 1), nk_build_align);
@@ -163,7 +188,7 @@ version (NK_INCLUDE_FONT_BAKING) {
     }
     int nk_font_bake_pack(nk_font_baker* baker, nk_size* image_memory, int* width, int* height, nk_recti* custom, const(nk_font_config)* config_list, int count, nk_allocator* alloc)
     {
-        const(NK_STORAGE) max_height = 1024 * 32;
+        enum nk_size max_height = 1024 * 32;
         const(nk_font_config)* config_iter = void, it = void;
         int total_glyph_count = 0;
         int total_range_count = 0;
@@ -198,7 +223,7 @@ version (NK_INCLUDE_FONT_BAKING) {
         }
         *height = 0;
         *width = (total_glyph_count > 1000) ? 1024 : 512;
-        stbtt_PackBegin(&baker.spc, 0, cast(int)*width, cast(int)max_height, 0, 1, alloc);
+        stbtt_PackBegin(&baker.spc, null, cast(int)*width, cast(int)max_height, 0, 1, alloc);
         {
             int input_i = 0;
             int range_n = 0;
@@ -213,8 +238,8 @@ version (NK_INCLUDE_FONT_BAKING) {
                 custom_space.h = cast(stbrp_coord)(custom.h);
 
                 stbtt_PackSetOversampling(&baker.spc, 1, 1);
-                stbrp_pack_rects(cast(stbrp_context*)baker.spc.pack_info, &custom_space, 1);
-                *height = NK_MAX(*height, cast(int)(custom_space.y + custom_space.h));
+                stbrp_pack_rects_tt(cast(stbrp_context*)baker.spc.pack_info, &custom_space, 1);
+                *height = nk_max(*height, cast(int)(custom_space.y + custom_space.h));
 
                 custom.x = cast(short)custom_space.x;
                 custom.y = cast(short)custom_space.y;
@@ -234,7 +259,7 @@ version (NK_INCLUDE_FONT_BAKING) {
 
                     /* count glyphs + ranges in current font */
                     glyph_count = 0; range_count = 0;
-                    for (in_range = cfg.range; in_range[0] && in_range[1]; in_range += cast(const(nk_rune)*) 2) {
+                    for (in_range = cfg.range; in_range[0] && in_range[1]; in_range += cast(nk_rune)2) {
                         glyph_count += cast(int)(in_range[1] - in_range[0]) + 1;
                         range_count++;
                     }
@@ -258,12 +283,12 @@ version (NK_INCLUDE_FONT_BAKING) {
                     stbtt_PackSetOversampling(&baker.spc, cfg.oversample_h, cfg.oversample_v);
                     n = stbtt_PackFontRangesGatherRects(&baker.spc, &tmp.info,
                         tmp.ranges, cast(int)tmp.range_count, tmp.rects);
-                    stbrp_pack_rects(cast(stbrp_context*)baker.spc.pack_info, tmp.rects, cast(int)n);
+                    stbrp_pack_rects_tt(cast(stbrp_context*)baker.spc.pack_info, tmp.rects, cast(int)n);
 
                     /* texture height */
                     for (i = 0; i < n; ++i) {
                         if (tmp.rects[i].was_packed)
-                            *height = NK_MAX(*height, tmp.rects[i].y + tmp.rects[i].h);
+                            *height = nk_max(*height, tmp.rects[i].y + tmp.rects[i].h);
                     }
                 } while ((it = it.n) != config_iter);
             }
@@ -271,7 +296,7 @@ version (NK_INCLUDE_FONT_BAKING) {
             assert(char_n == total_glyph_count);
             assert(range_n == total_range_count);
         }
-        *height = cast(int)nk_round_up_pow2((nk_uint)*height);
+        *height = cast(int)nk_round_up_pow2(cast(nk_uint)*height);
         *image_memory = cast(nk_size)(*width) * cast(nk_size)(*height);
         return nk_true;
     }
@@ -316,7 +341,7 @@ version (NK_INCLUDE_FONT_BAKING) {
                 nk_rune glyph_count = 0;
                 const(nk_font_config)* cfg = it;
                 nk_font_bake_data* tmp = &baker.build[input_i++];
-                nk_baked_font* dst_font = cfg.font;
+                nk_baked_font* dst_font = cast(nk_baked_font*)cfg.font;
 
                 float font_scale = stbtt_ScaleForPixelHeight(&tmp.info, cfg.size);
                 int unscaled_ascent = void, unscaled_descent = void, unscaled_line_gap = void;
@@ -396,7 +421,7 @@ version (NK_INCLUDE_FONT_BAKING) {
         assert(img_width);
         assert(img_height);
         assert(texture_data_mask);
-        NK_UNUSED(tex_height);
+        cast(void)(tex_height);
         if (!img_memory || !img_width || !img_height || !texture_data_mask)
             return;
 
@@ -472,7 +497,7 @@ version (NK_INCLUDE_FONT_BAKING) {
         nk_font* font = void;
 
         assert(glyph);
-        NK_UNUSED(next_codepoint);
+        cast(void)(next_codepoint);
 
         font = cast(nk_font*)handle.ptr;
         assert(font);
@@ -501,7 +526,7 @@ version (NK_INCLUDE_FONT_BAKING) {
         assert(font);
         assert(font.glyphs);
         assert(font.info.ranges);
-        if (!font || !font.glyphs) return 0;
+        if (!font || !font.glyphs) return null;
 
         glyph = font.fallback;
         iter = font.config;
@@ -527,7 +552,7 @@ version (NK_INCLUDE_FONT_BAKING) {
             return;
 
         baked = *baked_font;
-        font.fallback = 0;
+        font.fallback = null;
         font.info = baked;
         font.scale = cast(float)pixel_height / cast(float)font.info.height;
         font.glyphs = &glyphs[baked_font.glyph_offset];
@@ -536,12 +561,12 @@ version (NK_INCLUDE_FONT_BAKING) {
         font.fallback = nk_font_find_glyph(font, fallback_codepoint);
 
         font.handle.height = font.info.height * font.scale;
-        font.handle.width = nk_font_text_width;
+        font.handle.width = &nk_font_text_width;
         font.handle.userdata.ptr = font;
-    version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
-        font.handle.query = nk_font_query_font_glyph;
-        font.handle.texture = font.texture;
-    }
+        version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
+            font.handle.query = &nk_font_query_font_glyph;
+            font.handle.texture = font.texture;
+        }
     }
 
     /* ---------------------------------------------------------------------------
@@ -555,7 +580,7 @@ version (NK_INCLUDE_FONT_BAKING) {
     *-----------------------------------------------------------------------------*/
 
     version (NK_INCLUDE_DEFAULT_FONT) {
-        enum nk_proggy_clean_ttf_compressed_data_base85 = "7])#######hV0qs'/###[),##/l:$#Q6>##5[n42>c-TH`->>#/e>11NNV=Bv(*:.F?uu#(gRU.o0XGH`$vhLG1hxt9?W`#,5LsCp#-i>.r$<$6pD>Lb';9Crc6tgXmKVeU2cD4Eo3R/"
+        enum const(char)* nk_proggy_clean_ttf_compressed_data_base85 = "7])#######hV0qs'/###[),##/l:$#Q6>##5[n42>c-TH`->>#/e>11NNV=Bv(*:.F?uu#(gRU.o0XGH`$vhLG1hxt9?W`#,5LsCp#-i>.r$<$6pD>Lb';9Crc6tgXmKVeU2cD4Eo3R/"
             ~ "2*>]b(MC;$jPfY.;h^`IWM9<Lh2TlS+f-s$o6Q<BWH`YiU.xfLq$N;$0iR/GX:U(jcW2p/W*q?-qmnUCI;jHSAiFWM.R*kU@C=GH?a9wp8f$e.-4^Qg1)Q-GL(lf(r/7GrRgwV%MS=C#"
             ~ "`8ND>Qo#t'X#(v#Y9w0#1D$CIf;W'#pWUPXOuxXuU(H9M(1<q-UE31#^-V'8IRUo7Qf./L>=Ke$$'5F%)]0^#0X@U.a<r:QLtFsLcL6##lOj)#.Y5<-R&KgLwqJfLgN&;Q?gI^#DY2uL"
             ~ "i@^rMl9t=cWq6##weg>$FBjVQTSDgEKnIS7EM9>ZY9w0#L;>>#Mx&4Mvt//L[MkA#W@lK.N'[0#7RL_&#w+F%HtG9M#XL`N&.,GM4Pg;-<nLENhvx>-VsM.M0rJfLH2eTM`*oJMHRC`N"
@@ -645,7 +670,7 @@ version (NK_INCLUDE_FONT_BAKING) {
 
     enum NK_CURSOR_DATA_W = 90;
     enum NK_CURSOR_DATA_H = 27;
-    enum nk_custom_cursor_data = [
+    enum nk_custom_cursor_data =
         "..-         -XXXXXXX-    X    -           X           -XXXXXXX          -          XXXXXXX"
         ~ "..-         -X.....X-   X.X   -          X.X          -X.....X          -          X.....X"
         ~ "---         -XXX.XXX-  X...X  -         X...X         -X....X           -           X....X"
@@ -672,8 +697,7 @@ version (NK_INCLUDE_FONT_BAKING) {
         ~ "                    ----------------------------------- X...XXXXXXXXXXXXX...X -           "
         ~ "                                                      -  X..X           X..X  -           "
         ~ "                                                      -   X.X           X.X   -           "
-        ~ "                                                      -    XX           XX    -           "
-    ];
+        ~ "                                                      -    XX           XX    -           ";
 
     ubyte* nk__barrier;
     ubyte* nk__barrier2;
@@ -698,26 +722,26 @@ version (NK_INCLUDE_FONT_BAKING) {
         assert (nk__dout + length <= nk__barrier);
         if (nk__dout + length > nk__barrier) { nk__dout += length; return; }
         if (data < nk__barrier2) { nk__dout = nk__barrier+1; return; }
-        NK_MEMCPY(nk__dout, data, length);
+        nk_memcopy(nk__dout, data, length);
         nk__dout += length;
     }
     ubyte* nk_decompress_token(ubyte* i)
     {
-        enum string nk__in2(string x) = `((i[` ~ x ~ `] << 8) + i[(` ~ x ~ `)+1])`;
-        enum string nk__in3(string x) = `((i[` ~ x ~ `] << 16) + ` ~ nk__in2!(`(` ~ x ~ `)+1`) ~ `)`;
-        enum string nk__in4(string x) = `((i[` ~ x ~ `] << 24) + ` ~ nk__in3!(`(` ~ x ~ `)+1`) ~ `)`;
+        auto nk__in2(T)(T x) { return (i[x] << 8) + i[(x)+1]; }
+        auto nk__in3(T)(T x) { return (i[x] << 16) + nk__in2((x)+1); }
+        auto nk__in4(T)(T x) { return (i[x] << 24) + nk__in3((x)+1); }
 
         if (*i >= 0x20) { /* use fewer if's for cases that expand small */
             if (*i >= 0x80)       nk__match(nk__dout-i[1]-1, cast(uint)i[0] - 0x80 + 1), i += 2;
-            else if (*i >= 0x40)  nk__match(nk__dout-(mixin(nk__in2!(`0`)) - 0x4000 + 1), cast(uint)i[2]+1), i += 3;
+            else if (*i >= 0x40)  nk__match(nk__dout-(nk__in2(0) - 0x4000 + 1), cast(uint)i[2]+1), i += 3;
             else /* *i >= 0x20 */ nk__lit(i+1, cast(uint)i[0] - 0x20 + 1), i += 1 + (i[0] - 0x20 + 1);
         } else { /* more ifs for cases that expand large, since overhead is amortized */
-            if (*i >= 0x18)       nk__match(nk__dout-cast(uint)(mixin(nk__in3!(`0`)) - 0x180000 + 1), cast(uint)i[3]+1), i += 4;
-            else if (*i >= 0x10)  nk__match(nk__dout-cast(uint)(mixin(nk__in3!(`0`)) - 0x100000 + 1), cast(uint)mixin(nk__in2!(`3`))+1), i += 5;
-            else if (*i >= 0x08)  nk__lit(i+2, cast(uint)mixin(nk__in2!(`0`)) - 0x0800 + 1), i += 2 + (mixin(nk__in2!(`0`)) - 0x0800 + 1);
-            else if (*i == 0x07)  nk__lit(i+3, cast(uint)mixin(nk__in2!(`1`)) + 1), i += 3 + (mixin(nk__in2!(`1`)) + 1);
-            else if (*i == 0x06)  nk__match(nk__dout-cast(uint)(mixin(nk__in3!(`1`))+1), i[4]+1u), i += 5;
-            else if (*i == 0x04)  nk__match(nk__dout-cast(uint)(mixin(nk__in3!(`1`))+1), cast(uint)mixin(nk__in2!(`4`))+1u), i += 6;
+            if (*i >= 0x18)       nk__match(nk__dout-cast(uint)(nk__in3(0) - 0x180000 + 1), cast(uint)i[3]+1), i += 4;
+            else if (*i >= 0x10)  nk__match(nk__dout-cast(uint)(nk__in3(0) - 0x100000 + 1), cast(uint)nk__in2(3)+1), i += 5;
+            else if (*i >= 0x08)  nk__lit(i+2, cast(uint)nk__in2(0) - 0x0800 + 1), i += 2 + (nk__in2(0) - 0x0800 + 1);
+            else if (*i == 0x07)  nk__lit(i+3, cast(uint)nk__in2(1) + 1), i += 3 + (nk__in2(1) + 1);
+            else if (*i == 0x06)  nk__match(nk__dout-cast(uint)(nk__in3(1)+1), i[4]+1u), i += 5;
+            else if (*i == 0x04)  nk__match(nk__dout-cast(uint)(nk__in3(1)+1), cast(uint)nk__in2(4)+1u), i += 6;
         }
         return i;
     }
@@ -752,9 +776,13 @@ version (NK_INCLUDE_FONT_BAKING) {
     }
     uint nk_decompress(ubyte* output, ubyte* i, uint length)
     {
+        auto nk__in2(T)(T x) { return (i[x] << 8) + i[(x)+1]; }
+        auto nk__in3(T)(T x) { return (i[x] << 16) + nk__in2((x)+1); }
+        auto nk__in4(T)(T x) { return (i[x] << 24) + nk__in3((x)+1); }
+
         uint olen = void;
-        if (mixin(nk__in4!(`0`)) != 0x57bC0000) return 0;
-        if (mixin(nk__in4!(`4`)) != 0)          return 0; /* error! stream is > 4GB */
+        if (nk__in4(0) != 0x57bC0000) return 0;
+        if (nk__in4(4) != 0)          return 0; /* error! stream is > 4GB */
         olen = nk_decompress_length(i);
         nk__barrier2 = i;
         nk__barrier3 = i+length;
@@ -770,12 +798,12 @@ version (NK_INCLUDE_FONT_BAKING) {
                 if (*i == 0x05 && i[1] == 0xfa) {
                     assert(nk__dout == output + olen);
                     if (nk__dout != output + olen) return 0;
-                    if (nk_adler32(1, output, olen) != cast(uint) mixin(nk__in4!(`2`)))
+                    if (nk_adler32(1, output, olen) != cast(uint) nk__in4(2))
                         return 0;
                     return olen;
                 } else {
                     assert(0); /* NOTREACHED */
-                    return 0;
+                    // return 0;
                 }
             }
             assert(nk__dout <= output + olen);
@@ -813,40 +841,20 @@ version (NK_INCLUDE_FONT_BAKING) {
     *                          FONT ATLAS
     *
     * --------------------------------------------------------------*/
-    pragma(mangle, "nk_font_config")
-    nk_font_config nk_font_config_(float pixel_height)
-    {
-        nk_font_config cfg = void;
-        nk_zero_struct(cfg);
-        cfg.ttf_blob = 0;
-        cfg.ttf_size = 0;
-        cfg.ttf_data_owned_by_atlas = 0;
-        cfg.size = pixel_height;
-        cfg.oversample_h = 3;
-        cfg.oversample_v = 1;
-        cfg.pixel_snap = 0;
-        cfg.coord_type = NK_COORD_UV;
-        cfg.spacing = nk_vec2(0,0);
-        cfg.range = nk_font_default_glyph_ranges();
-        cfg.merge_mode = 0;
-        cfg.fallback_glyph = '?';
-        cfg.font = 0;
-        cfg.n = 0;
-        return cfg;
-    }
+
     version (NK_INCLUDE_DEFAULT_ALLOCATOR) {
-    void nk_font_atlas_init_default(nk_font_atlas* atlas)
-    {
-        assert(atlas);
-        if (!atlas) return;
-        nk_zero_struct(*atlas);
-        atlas.temporary.userdata.ptr = 0;
-        atlas.temporary.alloc = nk_malloc;
-        atlas.temporary.free = nk_mfree;
-        atlas.permanent.userdata.ptr = 0;
-        atlas.permanent.alloc = nk_malloc;
-        atlas.permanent.free = nk_mfree;
-    }
+        void nk_font_atlas_init_default(nk_font_atlas* atlas)
+        {
+            assert(atlas);
+            if (!atlas) return;
+            nk_zero_struct(*atlas);
+            atlas.temporary.userdata.ptr = null;
+            atlas.temporary.alloc = &nk_malloc;
+            atlas.temporary.free = &nk_mfree;
+            atlas.permanent.userdata.ptr = null;
+            atlas.permanent.alloc = &nk_malloc;
+            atlas.permanent.free = &nk_mfree;
+        }
     }
     void nk_font_atlas_init(nk_font_atlas* atlas, nk_allocator* alloc)
     {
@@ -876,11 +884,11 @@ version (NK_INCLUDE_FONT_BAKING) {
             !atlas.temporary.alloc || !atlas.temporary.free) return;
         if (atlas.glyphs) {
             atlas.permanent.free(atlas.permanent.userdata, atlas.glyphs);
-            atlas.glyphs = 0;
+            atlas.glyphs = null;
         }
         if (atlas.pixel) {
             atlas.permanent.free(atlas.permanent.userdata, atlas.pixel);
-            atlas.pixel = 0;
+            atlas.pixel = null;
         }
     }
     nk_font* nk_font_atlas_add(nk_font_atlas* atlas, const(nk_font_config)* config)
@@ -902,12 +910,12 @@ version (NK_INCLUDE_FONT_BAKING) {
         if (!atlas || !config || !config.ttf_blob || !config.ttf_size || config.size <= 0.0f||
             !atlas.permanent.alloc || !atlas.permanent.free ||
             !atlas.temporary.alloc || !atlas.temporary.free)
-            return 0;
+            return null;
 
         /* allocate font config  */
         cfg = cast(nk_font_config*)
-            atlas.permanent.alloc(atlas.permanent.userdata,0, nk_font_config.sizeof);
-        NK_MEMCPY(cfg, config, typeof(*config).sizeof);
+            atlas.permanent.alloc(atlas.permanent.userdata, null, nk_font_config.sizeof);
+        nk_memcopy(cfg, config, typeof(*config).sizeof);
         cfg.n = cfg;
         cfg.p = cfg;
 
@@ -915,30 +923,30 @@ version (NK_INCLUDE_FONT_BAKING) {
             /* insert font config into list */
             if (!atlas.config) {
                 atlas.config = cfg;
-                cfg.next = 0;
+                cfg.next = null;
             } else {
                 nk_font_config* i = atlas.config;
                 while (i.next) i = i.next;
                 i.next = cfg;
-                cfg.next = 0;
+                cfg.next = null;
             }
             /* allocate new font */
             font = cast(nk_font*)
-                atlas.permanent.alloc(atlas.permanent.userdata,0, nk_font.sizeof);
+                atlas.permanent.alloc(atlas.permanent.userdata, null, nk_font.sizeof);
             assert(font);
             nk_zero(font, typeof(*font).sizeof);
-            if (!font) return 0;
+            if (!font) return null;
             font.config = cfg;
 
             /* insert font into list */
             if (!atlas.fonts) {
                 atlas.fonts = font;
-                font.next = 0;
+                font.next = null;
             } else {
                 nk_font* i = atlas.fonts;
                 while (i.next) i = i.next;
                 i.next = font;
-                font.next = 0;
+                font.next = null;
             }
             cfg.font = &font.info;
         } else {
@@ -957,13 +965,13 @@ version (NK_INCLUDE_FONT_BAKING) {
         }
         /* create own copy of .TTF font blob */
         if (!config.ttf_data_owned_by_atlas) {
-            cfg.ttf_blob = atlas.permanent.alloc(atlas.permanent.userdata,0, cfg.ttf_size);
+            cfg.ttf_blob = atlas.permanent.alloc(atlas.permanent.userdata, null, cfg.ttf_size);
             assert(cfg.ttf_blob);
             if (!cfg.ttf_blob) {
                 atlas.font_num++;
-                return 0;
+                return null;
             }
-            NK_MEMCPY(cfg.ttf_blob, config.ttf_blob, cfg.ttf_size);
+            nk_memcopy(cfg.ttf_blob, config.ttf_blob, cfg.ttf_size);
             cfg.ttf_data_owned_by_atlas = 1;
         }
         atlas.font_num++;
@@ -983,9 +991,9 @@ version (NK_INCLUDE_FONT_BAKING) {
         assert(atlas.permanent.free);
         if (!atlas || !atlas.temporary.alloc || !atlas.temporary.free || !memory || !size ||
             !atlas.permanent.alloc || !atlas.permanent.free)
-            return 0;
+            return null;
 
-        cfg = (config) ? *config: nk_font_config(height);
+        cfg = cast(nk_font_config)((config) ? *config: nk_font_config_(height));
         cfg.ttf_blob = memory;
         cfg.ttf_size = size;
         cfg.size = height;
@@ -1006,11 +1014,11 @@ version (NK_INCLUDE_FONT_BAKING) {
             assert(atlas.permanent.alloc);
             assert(atlas.permanent.free);
 
-            if (!atlas || !file_path) return 0;
+            if (!atlas || !file_path) return null;
             memory = nk_file_load(file_path, &size, &atlas.permanent);
-            if (!memory) return 0;
+            if (!memory) return null;
 
-            cfg = (config) ? *config: nk_font_config(height);
+            cfg = cast(nk_font_config)((config) ? *config: nk_font_config_(height));
             cfg.ttf_blob = memory;
             cfg.ttf_size = size;
             cfg.size = height;
@@ -1035,16 +1043,16 @@ version (NK_INCLUDE_FONT_BAKING) {
         assert(compressed_size);
         if (!atlas || !compressed_data || !atlas.temporary.alloc || !atlas.temporary.free ||
             !atlas.permanent.alloc || !atlas.permanent.free)
-            return 0;
+            return null;
 
         decompressed_size = nk_decompress_length(cast(ubyte*)compressed_data);
-        decompressed_data = atlas.permanent.alloc(atlas.permanent.userdata,0,decompressed_size);
+        decompressed_data = atlas.permanent.alloc(atlas.permanent.userdata, null,decompressed_size);
         assert(decompressed_data);
-        if (!decompressed_data) return 0;
+        if (!decompressed_data) return null;
         nk_decompress(cast(ubyte*)decompressed_data, cast(ubyte*)compressed_data,
             cast(uint)compressed_size);
 
-        cfg = (config) ? *config: nk_font_config(height);
+        cfg = cast(nk_font_config)((config) ? *config: nk_font_config_(height));
         cfg.ttf_blob = decompressed_data;
         cfg.ttf_size = decompressed_size;
         cfg.size = height;
@@ -1066,12 +1074,12 @@ version (NK_INCLUDE_FONT_BAKING) {
         assert(data_base85);
         if (!atlas || !data_base85 || !atlas.temporary.alloc || !atlas.temporary.free ||
             !atlas.permanent.alloc || !atlas.permanent.free)
-            return 0;
+            return null;
 
         compressed_size = ((cast(int)nk_strlen(data_base85) + 4) / 5) * 4;
-        compressed_data = atlas.temporary.alloc(atlas.temporary.userdata,0, cast(nk_size)compressed_size);
+        compressed_data = atlas.temporary.alloc(atlas.temporary.userdata, null, cast(nk_size)compressed_size);
         assert(compressed_data);
-        if (!compressed_data) return 0;
+        if (!compressed_data) return null;
         nk_decode_85(cast(ubyte*)compressed_data, cast(const(ubyte)*)data_base85);
         font = nk_font_atlas_add_compressed(atlas, compressed_data,
                         cast(nk_size)compressed_size, height, config);
@@ -1088,7 +1096,7 @@ version (NK_INCLUDE_FONT_BAKING) {
             assert(atlas.permanent.alloc);
             assert(atlas.permanent.free);
             return nk_font_atlas_add_compressed_base85(atlas,
-                nk_proggy_clean_ttf_compressed_data_base85.ptr, pixel_height, config);
+                nk_proggy_clean_ttf_compressed_data_base85, pixel_height, config);
         }
     }
 
@@ -1111,27 +1119,27 @@ version (NK_INCLUDE_FONT_BAKING) {
         if (!atlas || !width || !height ||
             !atlas.temporary.alloc || !atlas.temporary.free ||
             !atlas.permanent.alloc || !atlas.permanent.free)
-            return 0;
+            return null;
 
         version (NK_INCLUDE_DEFAULT_FONT) {
             /* no font added so just use default font */
             if (!atlas.font_num)
-                atlas.default_font = nk_font_atlas_add_default(atlas, 13.0f, 0);
+                atlas.default_font = nk_font_atlas_add_default(atlas, 13.0f, null);
         }
         assert(atlas.font_num);
-        if (!atlas.font_num) return 0;
+        if (!atlas.font_num) return null;
 
         /* allocate temporary baker memory required for the baking process */
         nk_font_baker_memory(&tmp_size, &atlas.glyph_count, atlas.config, atlas.font_num);
-        tmp = atlas.temporary.alloc(atlas.temporary.userdata,0, tmp_size);
+        tmp = atlas.temporary.alloc(atlas.temporary.userdata, null, tmp_size);
         assert(tmp);
         if (!tmp) goto failed;
-        NK_MEMSET(tmp,0,tmp_size);
+        nk_memset(tmp,0,tmp_size);
 
         /* allocate glyph memory for all fonts */
-        baker = nk_font_baker(tmp, atlas.glyph_count, atlas.font_num, &atlas.temporary);
+        baker = nk_font_baker_(tmp, atlas.glyph_count, atlas.font_num, &atlas.temporary);
         atlas.glyphs = cast(nk_font_glyph*)atlas.permanent.alloc(
-            atlas.permanent.userdata,0, nk_font_glyph.sizeof *cast(nk_size)atlas.glyph_count);
+            atlas.permanent.userdata, null, nk_font_glyph.sizeof *cast(nk_size)atlas.glyph_count);
         assert(atlas.glyphs);
         if (!atlas.glyphs)
             goto failed;
@@ -1144,7 +1152,7 @@ version (NK_INCLUDE_FONT_BAKING) {
             goto failed;
 
         /* allocate memory for the baked image font atlas */
-        atlas.pixel = atlas.temporary.alloc(atlas.temporary.userdata,0, img_size);
+        atlas.pixel = atlas.temporary.alloc(atlas.temporary.userdata, null, img_size);
         assert(atlas.pixel);
         if (!atlas.pixel)
             goto failed;
@@ -1153,11 +1161,11 @@ version (NK_INCLUDE_FONT_BAKING) {
         nk_font_bake(baker, atlas.pixel, *width, *height,
             atlas.glyphs, atlas.glyph_count, atlas.config, atlas.font_num);
         nk_font_bake_custom_data(atlas.pixel, *width, *height, atlas.custom,
-                nk_custom_cursor_data.ptr, NK_CURSOR_DATA_W, NK_CURSOR_DATA_H, '.', 'X');
+                cast(char*)nk_custom_cursor_data.ptr, NK_CURSOR_DATA_W, NK_CURSOR_DATA_H, '.', 'X');
 
         if (fmt == NK_FONT_ATLAS_RGBA32) {
             /* convert alpha8 image into rgba32 image */
-            void* img_rgba = atlas.temporary.alloc(atlas.temporary.userdata,0,
+            void* img_rgba = atlas.temporary.alloc(atlas.temporary.userdata, null,
                                 cast(nk_size)(*width * *height * 4));
             assert(img_rgba);
             if (!img_rgba) goto failed;
@@ -1173,20 +1181,20 @@ version (NK_INCLUDE_FONT_BAKING) {
             nk_font* font = font_iter;
             nk_font_config* config = font.config;
             nk_font_init(font, config.size, config.fallback_glyph, atlas.glyphs,
-                config.font, nk_handle_ptr(0));
+                config.font, nk_handle_ptr(null));
         }
 
         /* initialize each cursor */
         {
             enum nk_vec2[3][NK_CURSOR_COUNT] nk_cursor_data = [
                 /* Pos      Size        Offset */
-                [[ 0, 3],   [12,19],    [ 0, 0]],
-                [[13, 0],   [ 7,16],    [ 4, 8]],
-                [[31, 0],   [23,23],    [11,11]],
-                [[21, 0],   [ 9, 23],   [ 5,11]],
-                [[55,18],   [23, 9],    [11, 5]],
-                [[73, 0],   [17,17],    [ 9, 9]],
-                [[55, 0],   [17,17],    [ 9, 9]]
+                [nk_vec2( 0, 3), nk_vec2(12,19),  nk_vec2( 0, 0)],
+                [nk_vec2(13, 0), nk_vec2( 7,16),  nk_vec2( 4, 8)],
+                [nk_vec2(31, 0), nk_vec2(23,23),  nk_vec2(11,11)],
+                [nk_vec2(21, 0), nk_vec2( 9, 23), nk_vec2( 5,11)],
+                [nk_vec2(55,18), nk_vec2(23, 9),  nk_vec2(11, 5)],
+                [nk_vec2(73, 0), nk_vec2(17,17),  nk_vec2( 9, 9)],
+                [nk_vec2(55, 0), nk_vec2(17,17),  nk_vec2( 9, 9)]
             ];
             for (i = 0; i < NK_CURSOR_COUNT; ++i) {
                 nk_cursor* cursor = &atlas.cursors[i];
@@ -1209,13 +1217,13 @@ version (NK_INCLUDE_FONT_BAKING) {
         if (tmp) atlas.temporary.free(atlas.temporary.userdata, tmp);
         if (atlas.glyphs) {
             atlas.permanent.free(atlas.permanent.userdata, atlas.glyphs);
-            atlas.glyphs = 0;
+            atlas.glyphs = null;
         }
         if (atlas.pixel) {
             atlas.temporary.free(atlas.temporary.userdata, atlas.pixel);
-            atlas.pixel = 0;
+            atlas.pixel = null;
         }
-        return 0;
+        return null;
     }
     void nk_font_atlas_end(nk_font_atlas* atlas, nk_handle texture, nk_draw_null_texture* tex_null)
     {
@@ -1242,7 +1250,7 @@ version (NK_INCLUDE_FONT_BAKING) {
             atlas.cursors[i].img.handle = texture;
 
         atlas.temporary.free(atlas.temporary.userdata, atlas.pixel);
-        atlas.pixel = 0;
+        atlas.pixel = null;
         atlas.tex_width = 0;
         atlas.tex_height = 0;
         atlas.custom.x = 0;
@@ -1265,10 +1273,10 @@ version (NK_INCLUDE_FONT_BAKING) {
                 nk_font_config* i = void;
                 for (i = iter.n; i != iter; i = i.n) {
                     atlas.permanent.free(atlas.permanent.userdata, i.ttf_blob);
-                    i.ttf_blob = 0;
+                    i.ttf_blob = null;
                 }
                 atlas.permanent.free(atlas.permanent.userdata, iter.ttf_blob);
-                iter.ttf_blob = 0;
+                iter.ttf_blob = null;
             }
         }
     }
@@ -1297,7 +1305,7 @@ version (NK_INCLUDE_FONT_BAKING) {
                     atlas.permanent.free(atlas.permanent.userdata, iter.ttf_blob);
                 atlas.permanent.free(atlas.permanent.userdata, iter);
             }
-            atlas.config = 0;
+            atlas.config = null;
         }
         if (atlas.fonts) {
             nk_font* iter = void, next = void;
@@ -1305,7 +1313,7 @@ version (NK_INCLUDE_FONT_BAKING) {
                 next = iter.next;
                 atlas.permanent.free(atlas.permanent.userdata, iter);
             }
-            atlas.fonts = 0;
+            atlas.fonts = null;
         }
         if (atlas.glyphs)
             atlas.permanent.free(atlas.permanent.userdata, atlas.glyphs);

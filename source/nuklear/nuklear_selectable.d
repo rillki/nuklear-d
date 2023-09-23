@@ -10,6 +10,11 @@ __gshared:
 
 import nuklear.nuklear_types;
 import nuklear.nuklear_util;
+import nuklear.nuklear_color;
+import nuklear.nuklear_draw;
+import nuklear.nuklear_text;
+import nuklear.nuklear_button;
+import nuklear.nuklear_widget;
 
 void nk_draw_selectable(nk_command_buffer* out_, nk_flags state, const(nk_style_selectable)* style, nk_bool active, const(nk_rect)* bounds, const(nk_rect)* icon, const(nk_image)* img, nk_symbol_type sym, const(char)* string, int len, nk_flags align_, const(nk_user_font)* font)
 {
@@ -85,13 +90,13 @@ nk_bool nk_do_selectable(nk_flags* state, nk_command_buffer* out_, nk_rect bound
     touch.h = bounds.h + style.touch_padding.y * 2;
 
     /* update button */
-    if (nk_button_behavior(state, touch, in_, NK_BUTTON_DEFAULT))
+    if (nk_button_behavior_(state, touch, in_, NK_BUTTON_DEFAULT))
         *value = !(*value);
 
     /* draw selectable */
-    if (style.draw_begin) style.draw_begin(out_, style.userdata);
-    nk_draw_selectable(out_, *state, style, *value, &bounds, 0,0,NK_SYMBOL_NONE, str, len, align_, font);
-    if (style.draw_end) style.draw_end(out_, style.userdata);
+    if (style.draw_begin) style.draw_begin(out_, cast(nk_handle)style.userdata);
+    nk_draw_selectable(out_, *state, style, *value, &bounds, null, null, NK_SYMBOL_NONE, str, len, align_, font);
+    if (style.draw_end) style.draw_end(out_, cast(nk_handle)style.userdata);
     return old_value != *value;
 }
 nk_bool nk_do_selectable_image(nk_flags* state, nk_command_buffer* out_, nk_rect bounds, const(char)* str, int len, nk_flags align_, nk_bool* value, const(nk_image)* img, const(nk_style_selectable)* style, const(nk_input)* in_, const(nk_user_font)* font)
@@ -116,14 +121,14 @@ nk_bool nk_do_selectable_image(nk_flags* state, nk_command_buffer* out_, nk_rect
     touch.y = bounds.y - style.touch_padding.y;
     touch.w = bounds.w + style.touch_padding.x * 2;
     touch.h = bounds.h + style.touch_padding.y * 2;
-    if (nk_button_behavior(state, touch, in_, NK_BUTTON_DEFAULT))
+    if (nk_button_behavior_(state, touch, in_, NK_BUTTON_DEFAULT))
         *value = !(*value);
 
     icon.y = bounds.y + style.padding.y;
     icon.w = icon.h = bounds.h - 2 * style.padding.y;
     if (align_ & NK_TEXT_ALIGN_LEFT) {
         icon.x = (bounds.x + bounds.w) - (2 * style.padding.x + icon.w);
-        icon.x = NK_MAX(icon.x, 0);
+        icon.x = nk_max(icon.x, 0);
     } else icon.x = bounds.x + 2 * style.padding.x;
 
     icon.x += style.image_padding.x;
@@ -132,9 +137,9 @@ nk_bool nk_do_selectable_image(nk_flags* state, nk_command_buffer* out_, nk_rect
     icon.h -= 2 * style.image_padding.y;
 
     /* draw selectable */
-    if (style.draw_begin) style.draw_begin(out_, style.userdata);
+    if (style.draw_begin) style.draw_begin(out_, cast(nk_handle)style.userdata);
     nk_draw_selectable(out_, *state, style, *value, &bounds, &icon, img, NK_SYMBOL_NONE, str, len, align_, font);
-    if (style.draw_end) style.draw_end(out_, style.userdata);
+    if (style.draw_end) style.draw_end(out_, cast(nk_handle)style.userdata);
     return old_value != *value;
 }
 nk_bool nk_do_selectable_symbol(nk_flags* state, nk_command_buffer* out_, nk_rect bounds, const(char)* str, int len, nk_flags align_, nk_bool* value, nk_symbol_type sym, const(nk_style_selectable)* style, const(nk_input)* in_, const(nk_user_font)* font)
@@ -159,14 +164,14 @@ nk_bool nk_do_selectable_symbol(nk_flags* state, nk_command_buffer* out_, nk_rec
     touch.y = bounds.y - style.touch_padding.y;
     touch.w = bounds.w + style.touch_padding.x * 2;
     touch.h = bounds.h + style.touch_padding.y * 2;
-    if (nk_button_behavior(state, touch, in_, NK_BUTTON_DEFAULT))
+    if (nk_button_behavior_(state, touch, in_, NK_BUTTON_DEFAULT))
         *value = !(*value);
 
     icon.y = bounds.y + style.padding.y;
     icon.w = icon.h = bounds.h - 2 * style.padding.y;
     if (align_ & NK_TEXT_ALIGN_LEFT) {
         icon.x = (bounds.x + bounds.w) - (2 * style.padding.x + icon.w);
-        icon.x = NK_MAX(icon.x, 0);
+        icon.x = nk_max(icon.x, 0);
     } else icon.x = bounds.x + 2 * style.padding.x;
 
     icon.x += style.image_padding.x;
@@ -175,9 +180,9 @@ nk_bool nk_do_selectable_symbol(nk_flags* state, nk_command_buffer* out_, nk_rec
     icon.h -= 2 * style.image_padding.y;
 
     /* draw selectable */
-    if (style.draw_begin) style.draw_begin(out_, style.userdata);
-    nk_draw_selectable(out_, *state, style, *value, &bounds, &icon, 0, sym, str, len, align_, font);
-    if (style.draw_end) style.draw_end(out_, style.userdata);
+    if (style.draw_begin) style.draw_begin(out_, cast(nk_handle)style.userdata);
+    nk_draw_selectable(out_, *state, style, *value, &bounds, &icon, null, sym, str, len, align_, font);
+    if (style.draw_end) style.draw_end(out_, cast(nk_handle)style.userdata);
     return old_value != *value;
 }
 
@@ -203,8 +208,8 @@ nk_bool nk_selectable_text(nk_context* ctx, const(char)* str, int len, nk_flags 
     style = &ctx.style;
 
     state = nk_widget(&bounds, ctx);
-    if (!state) return 0;
-    in_ = (state == NK_WIDGET_ROM || layout.flags & NK_WINDOW_ROM) ? 0 : &ctx.input;
+    if (!state) return false;
+    in_ = (state == NK_WIDGET_ROM || layout.flags & NK_WINDOW_ROM) ? null : &ctx.input;
     return nk_do_selectable(&ctx.last_widget_state, &win.buffer, bounds,
                 str, len, align_, value, &style.selectable, in_, style.font);
 }
@@ -230,8 +235,8 @@ nk_bool nk_selectable_image_text(nk_context* ctx, nk_image img, const(char)* str
     style = &ctx.style;
 
     state = nk_widget(&bounds, ctx);
-    if (!state) return 0;
-    in_ = (state == NK_WIDGET_ROM || layout.flags & NK_WINDOW_ROM) ? 0 : &ctx.input;
+    if (!state) return false;
+    in_ = (state == NK_WIDGET_ROM || layout.flags & NK_WINDOW_ROM) ? null : &ctx.input;
     return nk_do_selectable_image(&ctx.last_widget_state, &win.buffer, bounds,
                 str, len, align_, value, &img, &style.selectable, in_, style.font);
 }
@@ -257,8 +262,8 @@ nk_bool nk_selectable_symbol_text(nk_context* ctx, nk_symbol_type sym, const(cha
     style = &ctx.style;
 
     state = nk_widget(&bounds, ctx);
-    if (!state) return 0;
-    in_ = (state == NK_WIDGET_ROM || layout.flags & NK_WINDOW_ROM) ? 0 : &ctx.input;
+    if (!state) return false;
+    in_ = (state == NK_WIDGET_ROM || layout.flags & NK_WINDOW_ROM) ? null : &ctx.input;
     return nk_do_selectable_symbol(&ctx.last_widget_state, &win.buffer, bounds,
                 str, len, align_, value, sym, &style.selectable, in_, style.font);
 }

@@ -10,6 +10,12 @@ __gshared:
 
 import nuklear.nuklear_types;
 import nuklear.nuklear_util;
+import nuklear.nuklear_buffer;
+import nuklear.nuklear_color;
+import nuklear.nuklear_utf8;
+import nuklear.nuklear_image;
+import nuklear.nuklear_context;
+import nuklear.nuklear_layout;
 
 version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
     void nk_draw_list_init(nk_draw_list* list)
@@ -35,7 +41,7 @@ version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
             return;
 
         canvas.buffer = cmds;
-        canvas.config = *config;
+        canvas.config = cast(nk_convert_config)(*config);
         canvas.elements = elements;
         canvas.vertices = vertices;
         canvas.line_AA = line_aa;
@@ -57,7 +63,7 @@ version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
 
         assert(buffer);
         if (!buffer || !buffer.size || !canvas.cmd_count)
-            return 0;
+            return null;
 
         memory = cast(nk_byte*)buffer.memory.ptr;
         offset = buffer.memory.size - canvas.cmd_offset;
@@ -74,7 +80,7 @@ version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
         assert(buffer);
         assert(canvas);
         if (!buffer || !canvas)
-            return 0;
+            return null;
 
         memory = cast(nk_byte*)buffer.memory.ptr;
         size = buffer.memory.size;
@@ -89,10 +95,10 @@ version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
         assert(buffer);
         assert(canvas);
         if (!cmd || !buffer || !canvas)
-            return 0;
+            return null;
 
         end = nk__draw_list_end(canvas, buffer);
-        if (cmd <= end) return 0;
+        if (cmd <= end) return null;
         return (cmd-1);
     }
     nk_vec2* nk_draw_list_alloc_path(nk_draw_list* list, int count)
@@ -104,7 +110,7 @@ version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
             nk_buffer_alloc(list.buffer, NK_BUFFER_FRONT,
                             point_size * cast(nk_size)count, point_align);
 
-        if (!points) return 0;
+        if (!points) return null;
         if (!list.path_offset) {
             void* memory = nk_buffer_memory(list.buffer);
             list.path_offset = cast(uint)(cast(nk_byte*)points - cast(nk_byte*)memory);
@@ -132,11 +138,11 @@ version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
         cmd = cast(nk_draw_command*)
             nk_buffer_alloc(list.buffer, NK_BUFFER_BACK, cmd_size, cmd_align);
 
-        if (!cmd) return 0;
+        if (!cmd) return null;
         if (!list.cmd_count) {
             nk_byte* memory = cast(nk_byte*)nk_buffer_memory(list.buffer);
             nk_size total = nk_buffer_total(list.buffer);
-            memory = nk_ptr_add(nk_byte, memory, total);
+            memory = nk_ptr_add!nk_byte(memory, total);
             list.cmd_offset = cast(nk_size)(memory - cast(nk_byte*)cmd);
         }
 
@@ -215,10 +221,10 @@ version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
     {
         void* vtx = void;
         assert(list);
-        if (!list) return 0;
+        if (!list) return null;
         vtx = nk_buffer_alloc(list.vertices, NK_BUFFER_FRONT,
             list.config.vertex_size*count, list.config.vertex_alignment);
-        if (!vtx) return 0;
+        if (!vtx) return null;
         list.vertex_count += cast(uint)count;
 
         /* This assert triggers because your are drawing a lot of stuff and nuklear
@@ -230,7 +236,7 @@ version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
         * backend (OpenGL, DirectX, ...). For example in OpenGL for `glDrawElements`
         * instead of specifying `GL_UNSIGNED_SHORT` you have to define `GL_UNSIGNED_INT`.
         * Sorry for the inconvenience. */
-        if(nk_draw_index.sizeof==2) assert((list.vertex_count < NK_USHORT_MAX &&
+        if(nk_draw_index.sizeof==2) assert((list.vertex_count < ushort.max &&
             "To many vertices for 16-bit vertex indices. Please read comment above on how to solve this problem"));
         return vtx;
     }
@@ -241,11 +247,11 @@ version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
         enum nk_size elem_align = nk_draw_index.alignof;
         enum nk_size elem_size = nk_draw_index.sizeof;
         assert(list);
-        if (!list) return 0;
+        if (!list) return null;
 
         ids = cast(nk_draw_index*)
             nk_buffer_alloc(list.elements, NK_BUFFER_FRONT, elem_size*count, elem_align);
-        if (!ids) return 0;
+        if (!ids) return null;
         cmd = nk_draw_list_command_last(list);
         list.element_count += cast(uint)count;
         cmd.elem_count += cast(uint)count;
@@ -264,55 +270,55 @@ version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
         assert(format <= NK_FORMAT_COLOR_END);
         if (format < NK_FORMAT_COLOR_BEGIN || format > NK_FORMAT_COLOR_END) return;
 
-        val[0] = NK_SATURATE(vals[0]);
-        val[1] = NK_SATURATE(vals[1]);
-        val[2] = NK_SATURATE(vals[2]);
-        val[3] = NK_SATURATE(vals[3]);
+        val[0] = nk_saturate(vals[0]);
+        val[1] = nk_saturate(vals[1]);
+        val[2] = nk_saturate(vals[2]);
+        val[3] = nk_saturate(vals[3]);
 
         switch (format) {
-        default: assert(0 && "Invalid vertex layout color format"); break;
+        default: assert(0 && "Invalid vertex layout color format"); // break;
         case NK_FORMAT_R8G8B8A8:
         case NK_FORMAT_R8G8B8: {
             nk_color col = nk_rgba_fv(val.ptr);
-            NK_MEMCPY(attr, &col.r, col.sizeof);
+            nk_memcopy(attr, &col.r, col.sizeof);
         } break;
         case NK_FORMAT_B8G8R8A8: {
             nk_color col = nk_rgba_fv(val.ptr);
             nk_color bgra = nk_rgba(col.b, col.g, col.r, col.a);
-            NK_MEMCPY(attr, &bgra, bgra.sizeof);
+            nk_memcopy(attr, &bgra, bgra.sizeof);
         } break;
         case NK_FORMAT_R16G15B16: {
             nk_ushort[3] col = void;
-            col[0] = cast(nk_ushort)(val[0]*cast(float)NK_USHORT_MAX);
-            col[1] = cast(nk_ushort)(val[1]*cast(float)NK_USHORT_MAX);
-            col[2] = cast(nk_ushort)(val[2]*cast(float)NK_USHORT_MAX);
-            NK_MEMCPY(attr, col.ptr, col.sizeof);
+            col[0] = cast(nk_ushort)(val[0]*cast(float)ushort.max);
+            col[1] = cast(nk_ushort)(val[1]*cast(float)ushort.max);
+            col[2] = cast(nk_ushort)(val[2]*cast(float)ushort.max);
+            nk_memcopy(attr, col.ptr, col.sizeof);
         } break;
         case NK_FORMAT_R16G15B16A16: {
             nk_ushort[4] col = void;
-            col[0] = cast(nk_ushort)(val[0]*cast(float)NK_USHORT_MAX);
-            col[1] = cast(nk_ushort)(val[1]*cast(float)NK_USHORT_MAX);
-            col[2] = cast(nk_ushort)(val[2]*cast(float)NK_USHORT_MAX);
-            col[3] = cast(nk_ushort)(val[3]*cast(float)NK_USHORT_MAX);
-            NK_MEMCPY(attr, col.ptr, col.sizeof);
+            col[0] = cast(nk_ushort)(val[0]*cast(float)ushort.max);
+            col[1] = cast(nk_ushort)(val[1]*cast(float)ushort.max);
+            col[2] = cast(nk_ushort)(val[2]*cast(float)ushort.max);
+            col[3] = cast(nk_ushort)(val[3]*cast(float)ushort.max);
+            nk_memcopy(attr, col.ptr, col.sizeof);
         } break;
         case NK_FORMAT_R32G32B32: {
             nk_uint[3] col = void;
-            col[0] = cast(nk_uint)(val[0]*cast(float)NK_UINT_MAX);
-            col[1] = cast(nk_uint)(val[1]*cast(float)NK_UINT_MAX);
-            col[2] = cast(nk_uint)(val[2]*cast(float)NK_UINT_MAX);
-            NK_MEMCPY(attr, col.ptr, col.sizeof);
+            col[0] = cast(nk_uint)(val[0]*cast(float)uint.max);
+            col[1] = cast(nk_uint)(val[1]*cast(float)uint.max);
+            col[2] = cast(nk_uint)(val[2]*cast(float)uint.max);
+            nk_memcopy(attr, col.ptr, col.sizeof);
         } break;
         case NK_FORMAT_R32G32B32A32: {
             nk_uint[4] col = void;
-            col[0] = cast(nk_uint)(val[0]*cast(float)NK_UINT_MAX);
-            col[1] = cast(nk_uint)(val[1]*cast(float)NK_UINT_MAX);
-            col[2] = cast(nk_uint)(val[2]*cast(float)NK_UINT_MAX);
-            col[3] = cast(nk_uint)(val[3]*cast(float)NK_UINT_MAX);
-            NK_MEMCPY(attr, col.ptr, col.sizeof);
+            col[0] = cast(nk_uint)(val[0]*cast(float)uint.max);
+            col[1] = cast(nk_uint)(val[1]*cast(float)uint.max);
+            col[2] = cast(nk_uint)(val[2]*cast(float)uint.max);
+            col[3] = cast(nk_uint)(val[3]*cast(float)uint.max);
+            nk_memcopy(attr, col.ptr, col.sizeof);
         } break;
         case NK_FORMAT_R32G32B32A32_FLOAT:
-            NK_MEMCPY(attr, val.ptr, float.sizeof *4);
+            nk_memcopy(attr, val.ptr, float.sizeof *4);
             break;
         case NK_FORMAT_R32G32B32A32_DOUBLE: {
             double[4] col = void;
@@ -320,13 +326,13 @@ version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
             col[1] = cast(double)val[1];
             col[2] = cast(double)val[2];
             col[3] = cast(double)val[3];
-            NK_MEMCPY(attr, col.ptr, col.sizeof);
+            nk_memcopy(attr, col.ptr, col.sizeof);
         } break;
         case NK_FORMAT_RGB32:
         case NK_FORMAT_RGBA32: {
             nk_color col = nk_rgba_fv(val.ptr);
             nk_uint color = nk_color_u32(col);
-            NK_MEMCPY(attr, &color, color.sizeof);
+            nk_memcopy(attr, &color, color.sizeof);
         } break; }
     }
     void nk_draw_vertex_element(void* dst, const(float)* values, int value_count, nk_draw_vertex_layout_format format)
@@ -338,44 +344,44 @@ version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
         if (format >= NK_FORMAT_COLOR_BEGIN && format <= NK_FORMAT_COLOR_END) return;
         for (value_index = 0; value_index < value_count; ++value_index) {
             switch (format) {
-            default: assert(0 && "invalid vertex layout format"); break;
+            default: assert(0 && "invalid vertex layout format"); // break;
             case NK_FORMAT_SCHAR: {
-                char value = cast(char)NK_CLAMP(cast(float)NK_SCHAR_MIN, values[value_index], cast(float)NK_SCHAR_MAX);
-                NK_MEMCPY(attribute, &value, value.sizeof);
+                char value = cast(char)nk_clamp(cast(float)byte.min, values[value_index], cast(float)byte.max);
+                nk_memcopy(attribute, &value, value.sizeof);
                 attribute = cast(void*)(cast(char*)attribute + char.sizeof);
             } break;
             case NK_FORMAT_SSHORT: {
-                nk_short value = cast(nk_short)NK_CLAMP(cast(float)NK_SSHORT_MIN, values[value_index], cast(float)NK_SSHORT_MAX);
-                NK_MEMCPY(attribute, &value, value.sizeof);
+                nk_short value = cast(nk_short)nk_clamp(cast(float)short.min, values[value_index], cast(float)short.max);
+                nk_memcopy(attribute, &value, value.sizeof);
                 attribute = cast(void*)(cast(char*)attribute + value.sizeof);
             } break;
             case NK_FORMAT_SINT: {
-                nk_int value = cast(nk_int)NK_CLAMP(cast(float)nk_sinT_MIN, values[value_index], cast(float)nk_sinT_MAX);
-                NK_MEMCPY(attribute, &value, value.sizeof);
+                nk_int value = cast(nk_int)nk_clamp(cast(float)int.min, values[value_index], cast(float)int.max);
+                nk_memcopy(attribute, &value, value.sizeof);
                 attribute = cast(void*)(cast(char*)attribute + nk_int.sizeof);
             } break;
             case NK_FORMAT_UCHAR: {
-                ubyte value = cast(ubyte)NK_CLAMP(cast(float)NK_UCHAR_MIN, values[value_index], cast(float)NK_UCHAR_MAX);
-                NK_MEMCPY(attribute, &value, value.sizeof);
+                ubyte value = cast(ubyte)nk_clamp(cast(float)ubyte.min, values[value_index], cast(float)ubyte.max);
+                nk_memcopy(attribute, &value, value.sizeof);
                 attribute = cast(void*)(cast(char*)attribute + ubyte.sizeof);
             } break;
             case NK_FORMAT_USHORT: {
-                nk_ushort value = cast(nk_ushort)NK_CLAMP(cast(float)NK_USHORT_MIN, values[value_index], cast(float)NK_USHORT_MAX);
-                NK_MEMCPY(attribute, &value, value.sizeof);
+                nk_ushort value = cast(nk_ushort)nk_clamp(cast(float)ushort.min, values[value_index], cast(float)ushort.max);
+                nk_memcopy(attribute, &value, value.sizeof);
                 attribute = cast(void*)(cast(char*)attribute + value.sizeof);
                 } break;
             case NK_FORMAT_UINT: {
-                nk_uint value = cast(nk_uint)NK_CLAMP(cast(float)NK_UINT_MIN, values[value_index], cast(float)NK_UINT_MAX);
-                NK_MEMCPY(attribute, &value, value.sizeof);
+                nk_uint value = cast(nk_uint)nk_clamp(cast(float)uint.min, values[value_index], cast(float)uint.max);
+                nk_memcopy(attribute, &value, value.sizeof);
                 attribute = cast(void*)(cast(char*)attribute + nk_uint.sizeof);
             } break;
             case NK_FORMAT_FLOAT:
-                NK_MEMCPY(attribute, &values[value_index], typeof(values[value_index]).sizeof);
+                nk_memcopy(attribute, &values[value_index], typeof(values[value_index]).sizeof);
                 attribute = cast(void*)(cast(char*)attribute + float.sizeof);
                 break;
             case NK_FORMAT_DOUBLE: {
                 double value = cast(double)values[value_index];
-                NK_MEMCPY(attribute, &value, value.sizeof);
+                nk_memcopy(attribute, &value, value.sizeof);
                 attribute = cast(void*)(cast(char*)attribute + double.sizeof);
                 } break;
             }
@@ -389,7 +395,7 @@ version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
             void* address = cast(void*)(cast(char*)dst + elem_iter.offset);
             switch (elem_iter.attribute) {
             case NK_VERTEX_ATTRIBUTE_COUNT:
-            default: assert(0 && "wrong element attribute"); break;
+            default: assert(0 && "wrong element attribute"); // break;
             case NK_VERTEX_POSITION: nk_draw_vertex_element(address, &pos.x, 2, elem_iter.format); break;
             case NK_VERTEX_TEXCOORD: nk_draw_vertex_element(address, &uv.x, 2, elem_iter.format); break;
             case NK_VERTEX_COLOR: nk_draw_vertex_color(address, &color.r, elem_iter.format); break;
@@ -462,7 +468,7 @@ version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
                 /* vec2 inverted length  */
                 len = nk_vec2_len_sqr(diff);
                 if (len != 0.0f)
-                    len = NK_INV_SQRT(len);
+                    len = nk_inv_sqrt(len);
                 else len = 1.0f;
 
                 diff = nk_vec2_muls(diff, len);
@@ -497,7 +503,7 @@ version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
                     dmr2 = dm.x * dm.x + dm.y* dm.y;
                     if (dmr2 > 0.000001f) {
                         float scale = 1.0f/dmr2;
-                        scale = NK_MIN(100.0f, scale);
+                        scale = nk_min(100.0f, scale);
                         dm = nk_vec2_muls(dm, scale);
                     }
 
@@ -511,7 +517,7 @@ version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
                     ids[6] = cast(nk_draw_index)(idx2 + 1); ids[7] = cast(nk_draw_index)(idx1+1);
                     ids[8] = cast(nk_draw_index)(idx1 + 0); ids[9] = cast(nk_draw_index)(idx1+0);
                     ids[10]= cast(nk_draw_index)(idx2 + 0); ids[11]= cast(nk_draw_index)(idx2+1);
-                    ids += cast(nk_draw_index*) 12;
+                    ids += 12;
                     idx1 = idx2;
                 }
 
@@ -555,7 +561,7 @@ version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
                     float dmr2 = dm.x * dm.x + dm.y* dm.y;
                     if (dmr2 > 0.000001f) {
                         float scale = 1.0f/dmr2;
-                        scale = NK_MIN(100.0f, scale);
+                        scale = nk_min(100.0f, scale);
                         dm = nk_vec2_muls(dm, scale);
                     }
 
@@ -576,7 +582,7 @@ version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
                     ids[12]= cast(nk_draw_index)(idx2 + 2); ids[13] = cast(nk_draw_index)(idx1+2);
                     ids[14]= cast(nk_draw_index)(idx1 + 3); ids[15] = cast(nk_draw_index)(idx1+3);
                     ids[16]= cast(nk_draw_index)(idx2 + 3); ids[17] = cast(nk_draw_index)(idx2+2);
-                    ids += cast(nk_draw_index*) 18;
+                    ids += 18;
                     idx1 = idx2;
                 }
 
@@ -613,7 +619,7 @@ version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
                 /* vec2 inverted length  */
                 len = nk_vec2_len_sqr(diff);
                 if (len != 0.0f)
-                    len = NK_INV_SQRT(len);
+                    len = nk_inv_sqrt(len);
                 else len = 1.0f;
                 diff = nk_vec2_muls(diff, len);
 
@@ -630,7 +636,7 @@ version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
                 ids[2] = cast(nk_draw_index)(idx+2); ids[3] = cast(nk_draw_index)(idx+0);
                 ids[4] = cast(nk_draw_index)(idx+2); ids[5] = cast(nk_draw_index)(idx+3);
 
-                ids += cast(nk_draw_index*) 6;
+                ids += 6;
                 idx += 4;
             }
         }
@@ -688,7 +694,7 @@ version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
                 ids[0] = cast(nk_draw_index)(vtx_inner_idx);
                 ids[1] = cast(nk_draw_index)(vtx_inner_idx + ((i-1) << 1));
                 ids[2] = cast(nk_draw_index)(vtx_inner_idx + (i << 1));
-                ids += cast(nk_draw_index*) 3;
+                ids += 3;
             }
 
             /* compute normals */
@@ -700,7 +706,7 @@ version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
                 /* vec2 inverted length  */
                 float len = nk_vec2_len_sqr(diff);
                 if (len != 0.0f)
-                    len = NK_INV_SQRT(len);
+                    len = nk_inv_sqrt(len);
                 else len = 1.0f;
                 diff = nk_vec2_muls(diff, len);
 
@@ -717,7 +723,7 @@ version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
                 float dmr2 = dm.x*dm.x + dm.y*dm.y;
                 if (dmr2 > 0.000001f) {
                     float scale = 1.0f / dmr2;
-                    scale = NK_MIN(scale, 100.0f);
+                    scale = nk_min(scale, 100.0f);
                     dm = nk_vec2_muls(dm, scale);
                 }
                 dm = nk_vec2_muls(dm, AA_SIZE * 0.5f);
@@ -733,7 +739,7 @@ version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
                 ids[3] = cast(nk_draw_index)(vtx_outer_idx+(i0<<1));
                 ids[4] = cast(nk_draw_index)(vtx_outer_idx+(i1<<1));
                 ids[5] = cast(nk_draw_index)(vtx_inner_idx+(i1<<1));
-                ids += cast(nk_draw_index*) 6;
+                ids += 6;
             }
             /* free temporary normals + points */
             nk_buffer_reset(list.vertices, NK_BUFFER_FRONT);
@@ -752,7 +758,7 @@ version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
                 ids[0] = cast(nk_draw_index)index;
                 ids[1] = cast(nk_draw_index)(index+ i - 1);
                 ids[2] = cast(nk_draw_index)(index+i);
-                ids += cast(nk_draw_index*) 3;
+                ids += 3;
             }
         }
     }
@@ -788,7 +794,7 @@ version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
         if (!list) return;
         if (a_min <= a_max) {
             for (a = a_min; a <= a_max; a++) {
-                const(nk_vec2) c = list.circle_vtx[cast(nk_size)a % NK_LEN(list.circle_vtx)];
+                const(nk_vec2) c = list.circle_vtx[cast(nk_size)a % (list.circle_vtx.length)];
                 const(float) x = center.x + c.x * radius;
                 const(float) y = center.y + c.y * radius;
                 nk_draw_list_path_line_to(list, nk_vec2(x, y));
@@ -844,8 +850,8 @@ version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
         assert(list);
         if (!list) return;
         r = rounding;
-        r = NK_MIN(r, ((b.x-a.x) < 0) ? -(b.x-a.x): (b.x-a.x));
-        r = NK_MIN(r, ((b.y-a.y) < 0) ? -(b.y-a.y): (b.y-a.y));
+        r = nk_min(r, ((b.x-a.x) < 0) ? -(b.x-a.x): (b.x-a.x));
+        r = nk_min(r, ((b.y-a.y) < 0) ? -(b.y-a.y): (b.y-a.y));
 
         if (r == 0.0f) {
             nk_draw_list_path_line_to(list, a);
@@ -868,7 +874,7 @@ version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
         assert(list);
         assert(list.path_count);
         if (!list || !list.path_count) return;
-        num_segments = NK_MAX(num_segments, 1);
+        num_segments = nk_max(num_segments, 1);
 
         p1 = nk_draw_list_path_last(list);
         t_step = 1.0f/cast(float)num_segments;
@@ -1081,10 +1087,10 @@ version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
 
         assert(list);
         if (!list || !len || !text) return;
-        if (!NK_INTERSECT(rect.x, rect.y, rect.w, rect.h,
+        if (!nk_intersect(rect.x, rect.y, rect.w, rect.h,
             list.clip_rect.x, list.clip_rect.y, list.clip_rect.w, list.clip_rect.h)) return;
 
-        nk_draw_list_push_image(list, font.texture);
+        nk_draw_list_push_image(list, cast(nk_handle)font.texture);
         x = rect.x;
         glyph_len = nk_utf_decode(text, &unicode, len);
         if (!glyph_len) return;
@@ -1098,7 +1104,7 @@ version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
 
             /* query currently drawn glyph information */
             next_glyph_len = nk_utf_decode(text + text_len + glyph_len, &next, cast(int)len - text_len);
-            font.query(font.userdata, font_height, &g, unicode,
+            font.query(cast(nk_handle)font.userdata, font_height, &g, unicode,
                         (next == NK_UTF_INVALID) ? '\0' : next);
 
             /* calculate and draw glyph drawing rectangle and image */
@@ -1237,15 +1243,15 @@ version (NK_INCLUDE_VERTEX_BUFFER_OUTPUT) {
             case NK_COMMAND_TEXT: {
                 const(nk_command_text)* t = cast(const(nk_command_text)*)cmd;
                 nk_draw_list_add_text(&ctx.draw_list, t.font, nk_rect(t.x, t.y, t.w, t.h),
-                    t.string, t.length, t.height, t.foreground);
+                    t.string.ptr, t.length, t.height, t.foreground);
             } break;
             case NK_COMMAND_IMAGE: {
                 const(nk_command_image)* i = cast(const(nk_command_image)*)cmd;
-                nk_draw_list_add_image(&ctx.draw_list, i.img, nk_rect(i.x, i.y, i.w, i.h), i.col);
+                nk_draw_list_add_image(&ctx.draw_list, cast(nk_image)i.img, nk_rect(i.x, i.y, i.w, i.h), i.col);
             } break;
             case NK_COMMAND_CUSTOM: {
                 const(nk_command_custom)* c = cast(const(nk_command_custom)*)cmd;
-                c.callback(&ctx.draw_list, c.x, c.y, c.w, c.h, c.callback_data);
+                c.callback(&ctx.draw_list, c.x, c.y, c.w, c.h, cast(nk_handle)c.callback_data);
             } break;
             default: break;
             }

@@ -1,4 +1,6 @@
-module nuklear_context;
+module nuklear.nuklear_context;
+extern(C) @nogc nothrow:
+__gshared:
 
 /* ==============================================================
  *
@@ -8,6 +10,13 @@ module nuklear_context;
 
 import nuklear.nuklear_types;
 import nuklear.nuklear_util;
+import nuklear.nuklear_style;
+import nuklear.nuklear_draw;
+import nuklear.nuklear_buffer;
+import nuklear.nuklear_window;
+import nuklear.nuklear_pool;
+import nuklear.nuklear_table;
+import nuklear.nuklear_vertex;
 
 void nk_setup(nk_context* ctx, const(nk_user_font)* font)
 {
@@ -25,9 +34,9 @@ version (NK_INCLUDE_DEFAULT_ALLOCATOR) {
     nk_bool nk_init_default(nk_context* ctx, const(nk_user_font)* font)
     {
         nk_allocator alloc = void;
-        alloc.userdata.ptr = 0;
-        alloc.alloc = nk_malloc;
-        alloc.free = nk_mfree;
+        alloc.userdata.ptr = null;
+        alloc.alloc = &nk_malloc;
+        alloc.free = &nk_mfree;
         return nk_init(ctx, &alloc, font);
     }
 }
@@ -92,11 +101,11 @@ void nk_free(nk_context* ctx)
 
     ctx.seq = 0;
     ctx.build = 0;
-    ctx.begin = 0;
-    ctx.end = 0;
-    ctx.active = 0;
-    ctx.current = 0;
-    ctx.freelist = 0;
+    ctx.begin = null;
+    ctx.end = null;
+    ctx.active = null;
+    ctx.current = null;
+    ctx.freelist = null;
     ctx.count = 0;
 }
 void nk_clear(nk_context* ctx)
@@ -133,14 +142,14 @@ void nk_clear(nk_context* ctx)
             ctx.active = iter.prev;
             ctx.end = iter.prev;
             if (!ctx.end)
-                ctx.begin = 0;
+                ctx.begin = null;
             if (ctx.active)
                 ctx.active.flags &= ~cast(uint)NK_WINDOW_ROM;
         }
         /* free unused popup windows */
         if (iter.popup.win && iter.popup.win.seq != ctx.seq) {
             nk_free_window(ctx, iter.popup.win);
-            iter.popup.win = 0;
+            iter.popup.win = null;
         }
         /* remove unused window state tables */
         {nk_table* n = void, it = iter.tables;
@@ -256,7 +265,7 @@ void nk_build(nk_context* ctx)
     /* build one big draw command list out of all window buffers */
     it = ctx.begin;
     buffer = cast(nk_byte*)ctx.memory.memory.ptr;
-    while (it != 0) {
+    while (it != null) {
         nk_window* next = it.next;
         if (it.buffer.last == it.buffer.begin || (it.flags & NK_WINDOW_HIDDEN)||
             it.seq != ctx.seq)
@@ -272,7 +281,7 @@ void nk_build(nk_context* ctx)
     }
     /* append all popup draw commands into lists */
     it = ctx.begin;
-    while (it != 0) {
+    while (it != null) {
         nk_window* next = it.next;
         nk_popup_buffer* buf = void;
         if (!it.popup.buf.active)
@@ -296,8 +305,8 @@ const(nk_command)* nk__begin(nk_context* ctx)
     nk_window* iter = void;
     nk_byte* buffer = void;
     assert(ctx);
-    if (!ctx) return 0;
-    if (!ctx.count) return 0;
+    if (!ctx) return null;
+    if (!ctx.count) return null;
 
     buffer = cast(nk_byte*)ctx.memory.memory.ptr;
     if (!ctx.build) {
@@ -308,8 +317,8 @@ const(nk_command)* nk__begin(nk_context* ctx)
     while (iter && ((iter.buffer.begin == iter.buffer.end) ||
         (iter.flags & NK_WINDOW_HIDDEN) || iter.seq != ctx.seq))
         iter = iter.next;
-    if (!iter) return 0;
-    return constnk_ptr_add_const!nk_command(buffer, iter.buffer.begin);
+    if (!iter) return null;
+    return nk_ptr_add_const!nk_command(buffer, iter.buffer.begin);
 }
 
 const(nk_command)* nk__next(nk_context* ctx, const(nk_command)* cmd)
@@ -317,10 +326,10 @@ const(nk_command)* nk__next(nk_context* ctx, const(nk_command)* cmd)
     nk_byte* buffer = void;
     const(nk_command)* next = void;
     assert(ctx);
-    if (!ctx || !cmd || !ctx.count) return 0;
-    if (cmd.next >= ctx.memory.allocated) return 0;
+    if (!ctx || !cmd || !ctx.count) return null;
+    if (cmd.next >= ctx.memory.allocated) return null;
     buffer = cast(nk_byte*)ctx.memory.memory.ptr;
-    next = constnk_ptr_add_const!nk_command(buffer, cmd.next);
+    next = nk_ptr_add_const!nk_command(buffer, cmd.next);
     return next;
 }
 

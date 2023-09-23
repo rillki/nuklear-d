@@ -10,6 +10,10 @@ __gshared:
 
 import nuklear.nuklear_types;
 import nuklear.nuklear_util;
+import nuklear.nuklear_widget;
+import nuklear.nuklear_input;
+import nuklear.nuklear_draw;
+import nuklear.nuklear_button;
 
 float nk_scrollbar_behavior(nk_flags* state, nk_input* in_, int has_scrolling, const(nk_rect)* scroll, const(nk_rect)* cursor, const(nk_rect)* empty0, const(nk_rect)* empty1, float scroll_offset, float target, float scroll_step, nk_orientation o)
 {
@@ -50,13 +54,13 @@ float nk_scrollbar_behavior(nk_flags* state, nk_input* in_, int has_scrolling, c
             in_.mouse.buttons[NK_BUTTON_LEFT].clicked_pos.x = cursor_x + cursor.w/2.0f;
         }
     } else if ((nk_input_is_key_pressed(in_, NK_KEY_SCROLL_UP) && o == NK_VERTICAL && has_scrolling)||
-            nk_button_behavior(&ws, *empty0, in_, NK_BUTTON_DEFAULT)) {
+            nk_button_behavior_(&ws, *empty0, in_, NK_BUTTON_DEFAULT)) {
         /* scroll page up by click on empty space or shortcut */
         if (o == NK_VERTICAL)
             scroll_offset = nk_max(0, scroll_offset - scroll.h);
         else scroll_offset = nk_max(0, scroll_offset - scroll.w);
     } else if ((nk_input_is_key_pressed(in_, NK_KEY_SCROLL_DOWN) && o == NK_VERTICAL && has_scrolling) ||
-        nk_button_behavior(&ws, *empty1, in_, NK_BUTTON_DEFAULT)) {
+        nk_button_behavior_(&ws, *empty1, in_, NK_BUTTON_DEFAULT)) {
         /* scroll page down by click on empty space or shortcut */
         if (o == NK_VERTICAL)
             scroll_offset = nk_min(scroll_offset + scroll.h, target - scroll.h);
@@ -206,9 +210,9 @@ float nk_do_scrollbarv(nk_flags* state, nk_command_buffer* out_, nk_rect scroll,
     cursor.y = scroll.y + (scroll_off * scroll.h) + style.border_cursor + style.padding.y;
 
     /* draw scrollbar */
-    if (style.draw_begin) style.draw_begin(out_, style.userdata);
+    if (style.draw_begin) style.draw_begin(out_, cast(nk_handle)style.userdata);
     nk_draw_scrollbar(out_, *state, style, &scroll, &cursor);
-    if (style.draw_end) style.draw_end(out_, style.userdata);
+    if (style.draw_end) style.draw_end(out_, cast(nk_handle)style.userdata);
     return scroll_offset;
 }
 float nk_do_scrollbarh(nk_flags* state, nk_command_buffer* out_, nk_rect scroll, int has_scrolling, float offset, float target, float step, float button_pixel_inc, const(nk_style_scrollbar)* style, nk_input* in_, const(nk_user_font)* font)
@@ -289,9 +293,9 @@ float nk_do_scrollbarh(nk_flags* state, nk_command_buffer* out_, nk_rect scroll,
     cursor.x = scroll.x + (scroll_off * scroll.w);
 
     /* draw scrollbar */
-    if (style.draw_begin) style.draw_begin(out_, style.userdata);
+    if (style.draw_begin) style.draw_begin(out_, cast(nk_handle)style.userdata);
     nk_draw_scrollbar(out_, *state, style, &scroll, &cursor);
-    if (style.draw_end) style.draw_end(out_, style.userdata);
+    if (style.draw_end) style.draw_end(out_, cast(nk_handle)style.userdata);
     return scroll_offset;
 }
 
