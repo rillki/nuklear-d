@@ -11,6 +11,8 @@ __gshared:
 import nuklear.nuklear_types;
 import nuklear.nuklear_util;
 import nuklear.nuklear_layout;
+import nuklear.nuklear_input;
+import nuklear.nuklear_page_element;
 
 void nk_widget_state_reset(S)(S *s) {
     if ((*s) & NK_WIDGET_STATE_MODIFIED)
@@ -150,7 +152,7 @@ nk_widget_layout_states nk_widget(nk_rect* bounds, const(nk_context)* ctx)
 
     /* allocate space and check if the widget needs to be updated and drawn */
     nk_panel_alloc_space(bounds, ctx);
-    win = ctx.current;
+    win = cast(nk_window*)ctx.current;
     layout = win.layout;
     in_ = &ctx.input;
     c = layout.clip;
@@ -178,7 +180,7 @@ nk_widget_layout_states nk_widget(nk_rect* bounds, const(nk_context)* ctx)
     nk_unify(&v, &c, bounds.x, bounds.y, bounds.x + bounds.w, bounds.y + bounds.h);
     if (!nk_intersect(c.x, c.y, c.w, c.h, bounds.x, bounds.y, bounds.w, bounds.h))
         return NK_WIDGET_INVALID;
-    if (!NK_INBOX(in_.mouse.pos.x, in_.mouse.pos.y, v.x, v.y, v.w, v.h))
+    if (!nk_inbox(in_.mouse.pos.x, in_.mouse.pos.y, v.x, v.y, v.w, v.h))
         return NK_WIDGET_ROM;
     return NK_WIDGET_VALID;
 }
@@ -186,7 +188,7 @@ nk_widget_layout_states nk_widget_fitting(nk_rect* bounds, nk_context* ctx, nk_v
 {
     /* update the bounds to stand without padding  */
     nk_widget_layout_states state = void;
-    NK_UNUSED(item_padding);
+    cast(void)(item_padding);
 
     assert(ctx);
     assert(ctx.current);

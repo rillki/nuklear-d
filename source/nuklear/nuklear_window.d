@@ -10,12 +10,19 @@ __gshared:
 
 import nuklear.nuklear_types;
 import nuklear.nuklear_util;
+import nuklear.nuklear_page_element;
+import nuklear.nuklear_table;
+import nuklear.nuklear_buffer;
+import nuklear.nuklear_draw;
+import nuklear.nuklear_context;
+import nuklear.nuklear_input;
+import nuklear.nuklear_panel;
 
 void* nk_create_window(nk_context* ctx)
 {
     nk_page_element* elem = void;
     elem = nk_create_page_element(ctx);
-    if (!elem) return 0;
+    if (!elem) return null;
     elem.data.win.seq = ctx.seq;
     return &elem.data.win;
 }
@@ -25,10 +32,10 @@ void nk_free_window(nk_context* ctx, nk_window* win)
     nk_table* it = win.tables;
     if (win.popup.win) {
         nk_free_window(ctx, win.popup.win);
-        win.popup.win = 0;
+        win.popup.win = null;
     }
-    win.next = 0;
-    win.prev = 0;
+    win.next = null;
+    win.prev = null;
 
     while (it) {
         /*free window state tables */
@@ -52,13 +59,13 @@ nk_window* nk_find_window(nk_context* ctx, nk_hash hash, const(char)* name)
     while (iter) {
         assert(iter != iter.next);
         if (iter.name == hash) {
-            int max_len = nk_strlen(iter.name_string);
-            if (!nk_stricmpn(iter.name_string, name, max_len))
+            int max_len = nk_strlen(iter.name_string.ptr);
+            if (!nk_stricmpn(iter.name_string.ptr, name, max_len))
                 return iter;
         }
         iter = iter.next;
     }
-    return 0;
+    return null;
 }
 void nk_insert_window(nk_context* ctx, nk_window* win, nk_window_insert_location loc)
 {
@@ -76,8 +83,8 @@ void nk_insert_window(nk_context* ctx, nk_window* win, nk_window_insert_location
     }
 
     if (!ctx.begin) {
-        win.next = 0;
-        win.prev = 0;
+        win.next = null;
+        win.prev = null;
         ctx.begin = win;
         ctx.end = win;
         ctx.count = 1;
@@ -89,7 +96,7 @@ void nk_insert_window(nk_context* ctx, nk_window* win, nk_window_insert_location
         end.flags |= NK_WINDOW_ROM;
         end.next = win;
         win.prev = ctx.end;
-        win.next = 0;
+        win.next = null;
         ctx.end = win;
         ctx.active = ctx.end;
         ctx.end.flags &= ~cast(nk_flags)NK_WINDOW_ROM;
@@ -97,7 +104,7 @@ void nk_insert_window(nk_context* ctx, nk_window* win, nk_window_insert_location
         /*ctx->end->flags |= NK_WINDOW_ROM;*/
         ctx.begin.prev = win;
         win.next = ctx.begin;
-        win.prev = 0;
+        win.prev = null;
         ctx.begin = win;
         ctx.begin.flags &= ~cast(nk_flags)NK_WINDOW_ROM;
     }
@@ -109,12 +116,12 @@ void nk_remove_window(nk_context* ctx, nk_window* win)
         if (win == ctx.begin) {
             ctx.begin = win.next;
             if (win.next)
-                win.next.prev = 0;
+                win.next.prev = null;
         }
         if (win == ctx.end) {
             ctx.end = win.prev;
             if (win.prev)
-                win.prev.next = 0;
+                win.prev.next = null;
         }
     } else {
         if (win.next)
@@ -127,8 +134,8 @@ void nk_remove_window(nk_context* ctx, nk_window* win)
         if (ctx.end)
             ctx.end.flags &= ~cast(nk_flags)NK_WINDOW_ROM;
     }
-    win.next = 0;
-    win.prev = 0;
+    win.next = null;
+    win.prev = null;
     ctx.count--;
 }
 nk_bool nk_begin(nk_context* ctx, const(char)* title, nk_rect bounds, nk_flags flags)
@@ -172,9 +179,9 @@ nk_bool nk_begin_titled(nk_context* ctx, const(char)* name, const(char)* title, 
         win.bounds = bounds;
         win.name = name_hash;
         name_length = nk_min(name_length, NK_WINDOW_MAX_NAME-1);
-        nk_memcopy(win.name_string, name, name_length);
+        nk_memcopy(win.name_string.ptr, name, name_length);
         win.name_string[name_length] = 0;
-        win.popup.win = 0;
+        win.popup.win = null;
         if (!ctx.active)
             ctx.active = win;
     } else {
@@ -199,7 +206,7 @@ nk_bool nk_begin_titled(nk_context* ctx, const(char)* name, const(char)* title, 
     }
     if (win.flags & NK_WINDOW_HIDDEN) {
         ctx.current = win;
-        win.layout = 0;
+        win.layout = null;
         return 0;
     } else nk_start(ctx, win);
 
@@ -243,7 +250,7 @@ nk_bool nk_begin_titled(nk_context* ctx, const(char)* name, const(char)* title, 
                 /* try to find a panel with higher priority in the same position */
                 nk_rect iter_bounds = (!(iter.flags & NK_WINDOW_MINIMIZED))?
                 iter.bounds: nk_rect(iter.bounds.x, iter.bounds.y, iter.bounds.w, h);
-                if (NK_INBOX(ctx.input.mouse.pos.x, ctx.input.mouse.pos.y,
+                if (nk_inbox(ctx.input.mouse.pos.x, ctx.input.mouse.pos.y,
                     iter_bounds.x, iter_bounds.y, iter_bounds.w, iter_bounds.h) &&
                     !(iter.flags & NK_WINDOW_HIDDEN))
                     break;
@@ -285,7 +292,7 @@ nk_bool nk_begin_titled(nk_context* ctx, const(char)* name, const(char)* title, 
     ret = nk_panel_begin(ctx, title, NK_PANEL_WINDOW);
     win.layout.offset_x = &win.scrollbar.x;
     win.layout.offset_y = &win.scrollbar.y;
-    return ret;
+    return cast(nk_bool)ret;
 }
 void nk_end(nk_context* ctx)
 {
@@ -297,12 +304,12 @@ void nk_end(nk_context* ctx)
 
     layout = ctx.current.layout;
     if (!layout || (layout.type == NK_PANEL_WINDOW && (ctx.current.flags & NK_WINDOW_HIDDEN))) {
-        ctx.current = 0;
+        ctx.current = null;
         return;
     }
     nk_panel_end(ctx);
     nk_free_panel(ctx, ctx.current.layout);
-    ctx.current = 0;
+    ctx.current = null;
 }
 nk_rect nk_window_get_bounds(const(nk_context)* ctx)
 {
@@ -376,14 +383,14 @@ nk_command_buffer* nk_window_get_canvas(nk_context* ctx)
     assert(ctx);
     assert(ctx.current);
     assert(ctx.current.layout);
-    if (!ctx || !ctx.current) return 0;
+    if (!ctx || !ctx.current) return null;
     return &ctx.current.buffer;
 }
 nk_panel* nk_window_get_panel(nk_context* ctx)
 {
     assert(ctx);
     assert(ctx.current);
-    if (!ctx || !ctx.current) return 0;
+    if (!ctx || !ctx.current) return null;
     return ctx.current.layout;
 }
 void nk_window_get_scroll(nk_context* ctx, nk_uint* offset_x, nk_uint* offset_y)
@@ -465,7 +472,7 @@ nk_bool nk_window_is_collapsed(nk_context* ctx, const(char)* name)
     title_hash = nk_murmur_hash(name, cast(int)title_len, NK_WINDOW_TITLE);
     win = nk_find_window(ctx, title_hash, name);
     if (!win) return 0;
-    return win.flags & NK_WINDOW_MINIMIZED;
+    return cast(nk_bool)(win.flags & NK_WINDOW_MINIMIZED);
 }
 nk_bool nk_window_is_closed(nk_context* ctx, const(char)* name)
 {
@@ -479,7 +486,7 @@ nk_bool nk_window_is_closed(nk_context* ctx, const(char)* name)
     title_hash = nk_murmur_hash(name, cast(int)title_len, NK_WINDOW_TITLE);
     win = nk_find_window(ctx, title_hash, name);
     if (!win) return 1;
-    return (win.flags & NK_WINDOW_CLOSED);
+    return cast(nk_bool)(win.flags & NK_WINDOW_CLOSED);
 }
 nk_bool nk_window_is_hidden(nk_context* ctx, const(char)* name)
 {
@@ -493,7 +500,7 @@ nk_bool nk_window_is_hidden(nk_context* ctx, const(char)* name)
     title_hash = nk_murmur_hash(name, cast(int)title_len, NK_WINDOW_TITLE);
     win = nk_find_window(ctx, title_hash, name);
     if (!win) return 1;
-    return (win.flags & NK_WINDOW_HIDDEN);
+    return cast(nk_bool)(win.flags & NK_WINDOW_HIDDEN);
 }
 nk_bool nk_window_is_active(nk_context* ctx, const(char)* name)
 {
@@ -576,7 +583,7 @@ void nk_window_collapse(nk_context* ctx, const(char)* name, nk_collapse_states c
     title_hash = nk_murmur_hash(name, cast(int)title_len, NK_WINDOW_TITLE);
     win = nk_find_window(ctx, title_hash, name);
     if (!win) return;
-    if (c == nk_minIMIZED)
+    if (c == NK_MINIMIZED)
         win.flags |= NK_WINDOW_MINIMIZED;
     else win.flags &= ~cast(nk_flags)NK_WINDOW_MINIMIZED;
 }

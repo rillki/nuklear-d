@@ -3,6 +3,7 @@ extern(C) @nogc nothrow:
 __gshared:
 
 public import nuklear.stb_internal;
+import core.stdc.stdlib: qsort;
 
 enum
 {
